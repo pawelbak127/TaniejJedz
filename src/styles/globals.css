@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand */
+  --color-primary: #0F6FEC;
+  --color-primary-hover: #0B5BCC;
+  --color-primary-light: #E8F1FD;
+  --color-accent: #00C48C;
+  --color-accent-dark: #00A376;
+  --color-danger: #EF4444;
+  --color-warning: #F59E0B;
+
+  /* Neutrals */
+  --color-bg: #FAFBFC;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #FFFFFF;
+  --color-border: #E2E6EA;
+  --color-border-strong: #C8CED6;
+  --color-text-primary: #111827;
+  --color-text-secondary: #5F6B7A;
+  --color-text-tertiary: #9CA3AF;
+  --color-text-inverse: #FFFFFF;
+
+  /* Platform brand colors */
+  --color-pyszne: #FF8000;
+  --color-ubereats: #06C167;
+  --color-wolt: #009DE0;
+  --color-glovo: #FFC244;
+
+  /* Savings highlight */
+  --color-savings-bg: #ECFDF5;
+  --color-savings-text: #065F46;
+  --color-savings-border: #A7F3D0;
+
+  /* Staleness indicators */
+  --color-fresh: #00C48C;
+  --color-stale-mild: #F59E0B;
+  --color-stale-severe: #EF4444;
+
+  /* Font sizes - modular scale 1.200 */
+  --text-xs: 0.694rem;
+  --text-sm: 0.833rem;
+  --text-base: 1rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.44rem;
+  --text-2xl: 1.728rem;
+  --text-3xl: 2.074rem;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-lg: 0 4px 20px rgba(0,0,0,0.08);
+  --shadow-xl: 0 8px 40px rgba(0,0,0,0.10);
+
+  /* Transitions */
+  --transition-fast: 120ms ease-out;
+  --transition-base: 200ms ease-out;
+  --transition-slow: 350ms ease-out;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+}
+
+/* Base utility for numbers and prices */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Skeleton Shimmer Animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
