@@ -10,6 +10,7 @@ import PlatformBadges from '@/components/restaurant/PlatformBadges';
 import MenuView from '@/components/menu/MenuView';
 import MenuSkeleton from '@/components/menu/MenuSkeleton';
 import FeedbackButton from '@/components/feedback/FeedbackButton';
+import { ComparisonCartWrapper } from '@/components/comparison';
 import { apiClient, ApiClientError } from '@/lib/api-client';
 import type { MenuResponse, Platform, PlatformAvailability } from '@/generated/api-types';
 
@@ -26,7 +27,9 @@ export default function RestaurantDetailClient({
 }: RestaurantDetailClientProps) {
   const [menu, setMenu] = useState<MenuResponse | null>(initialMenu);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(initialMenu === null ? 'Nie udało się załadować menu. Spróbuj ponownie.' : null);
+  const [error, setError] = useState<string | null>(
+    initialMenu === null ? 'Nie udało się załadować menu. Spróbuj ponownie.' : null,
+  );
 
   const fetchMenu = useCallback(async () => {
     setIsLoading(true);
@@ -45,7 +48,6 @@ export default function RestaurantDetailClient({
     }
   }, [restaurantId]);
 
-  // Build platforms record for PlatformBadges from menu data
   const platformsRecord: Partial<Record<Platform, PlatformAvailability>> = {};
   if (menu) {
     for (const p of menu.restaurant.platforms_available) {
@@ -67,7 +69,7 @@ export default function RestaurantDetailClient({
 
       <main className="flex-1">
         <div className="mx-auto max-w-[1280px] px-4 sm:px-6 py-6">
-          {/* Restaurant header — always visible even on error */}
+          {/* Restaurant header */}
           {menu && (
             <div className="mb-6">
               <h1 className="text-2xl font-semibold text-text-primary">
@@ -121,10 +123,10 @@ export default function RestaurantDetailClient({
           {/* Loading */}
           {isLoading && <MenuSkeleton />}
 
-          {/* Menu content */}
+          {/* Menu + Cart */}
           {!isLoading && !error && menu && (
             <div className="lg:flex lg:gap-6">
-              {/* Menu — 60% on desktop, full width on mobile */}
+              {/* Menu — 60% desktop, full mobile */}
               <div className="lg:w-[60%] lg:shrink-0">
                 <MenuView
                   categories={menu.categories}
@@ -132,17 +134,8 @@ export default function RestaurantDetailClient({
                 />
               </div>
 
-              {/* Cart placeholder — Etap 7 */}
-              <div className="hidden lg:block lg:w-[40%]">
-                <div className="sticky top-4 border border-border rounded-md bg-surface p-4">
-                  <p className="text-sm font-medium text-text-secondary">
-                    Twój koszyk porównania
-                  </p>
-                  <p className="text-xs text-text-tertiary mt-1">
-                    Dodaj produkty z menu, aby porównać ceny między platformami.
-                  </p>
-                </div>
-              </div>
+              {/* Cart — sidebar desktop, bottom sheet mobile */}
+              <ComparisonCartWrapper restaurantId={restaurantId} />
             </div>
           )}
 
