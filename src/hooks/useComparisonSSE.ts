@@ -1,12 +1,25 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useComparisonStore } from '@/stores/comparison';
 import { SSE_MAX_RETRIES } from '@/lib/constants';
 
-export function useComparisonSSE(comparisonId: string | null) {
+interface SSEState {
+  sseError: boolean;
+  retrySSE: () => void;
+}
+
+function getScenarioParam(): string {
+  if (typeof window === 'undefined') return '';
+  const params = new URLSearchParams(window.location.search);
+  const scenario = params.get('scenario');
+  return scenario ? `&scenario=${scenario}` : '';
+}
+
+export function useComparisonSSE(comparisonId: string | null): SSEState {
   const eventSourceRef = useRef<EventSource | null>(null);
   const retryCountRef = useRef(0);
+  const [sseError, setSseError] = useState(false);
 
   const setPlatformResult = useComparisonStore((s) => s.setPlatformResult);
   const setComparisonResult = useComparisonStore((s) => s.setComparisonResult);
@@ -16,8 +29,13 @@ export function useComparisonSSE(comparisonId: string | null) {
 
     eventSourceRef.current?.close();
     retryCountRef.current = 0;
+    setSseError(false);
 
-    const es = new EventSource(`/api/v1/compare/stream?id=${comparisonId}`);
+    // Dev: read ?scenario= from page URL and forward to SSE endpoint
+    const scenarioParam = getScenarioParam();
+    const url = `/api/v1/compare/stream?id=${comparisonId}${scenarioParam}`;
+
+    const es = new EventSource(url);
     eventSourceRef.current = es;
 
     es.addEventListener('platform_status', (e: MessageEvent) => {
@@ -48,6 +66,7 @@ export function useComparisonSSE(comparisonId: string | null) {
       retryCountRef.current += 1;
       if (retryCountRef.current >= SSE_MAX_RETRIES) {
         es.close();
+        setSseError(true);
       }
     };
   }, [comparisonId, setPlatformResult, setComparisonResult]);
@@ -58,4 +77,10 @@ export function useComparisonSSE(comparisonId: string | null) {
       eventSourceRef.current?.close();
     };
   }, [connect]);
+
+  const retrySSE = useCallback(() => {
+    connect();
+  }, [connect]);
+
+  return { sseError, retrySSE };
 }

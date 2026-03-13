@@ -1,9 +1,18 @@
-import { API_BASE } from '@/lib/constants';
+import type { Metadata } from 'next';
+import { API_BASE, SUPPORTED_CITIES_DISPLAY } from '@/lib/constants';
 import type { SearchResponse } from '@/generated/api-types';
 import RestaurantListClient from './RestaurantListClient';
 
 interface CityPageProps {
   params: { city: string };
+}
+
+export function generateMetadata({ params }: CityPageProps): Metadata {
+  const cityDisplay = SUPPORTED_CITIES_DISPLAY[params.city] || params.city;
+  return {
+    title: `Restauracje w ${cityDisplay} — porównaj ceny dostaw`,
+    description: `Porównaj ceny dostaw jedzenia w ${cityDisplay}. Sprawdź Pyszne.pl, Uber Eats, Wolt i Glovo — znajdź najtańszą dostawę.`,
+  };
 }
 
 async function fetchInitialRestaurants(city: string): Promise<SearchResponse> {

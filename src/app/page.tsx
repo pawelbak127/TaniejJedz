@@ -1,7 +1,14 @@
+import type { Metadata } from 'next';
 import { MapPin, Search, ArrowRightLeft } from 'lucide-react';
 import Header from '@/components/shared/Header';
 import Footer from '@/components/shared/Footer';
 import AddressInput from '@/components/address/AddressInput';
+
+export const metadata: Metadata = {
+  title: 'TaniejJedz.pl — Porównaj ceny dostaw jedzenia',
+  description:
+    'Porównaj ceny dostaw jedzenia w Twojej okolicy. Sprawdzamy Pyszne.pl, Uber Eats, Wolt i Glovo — żebyś płacił mniej.',
+};
 
 export default function HomePage() {
   return (

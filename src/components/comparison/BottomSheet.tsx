@@ -9,7 +9,7 @@ interface BottomSheetProps {
 
 const COLLAPSED_HEIGHT = 60;
 const EXPANDED_VH = 80;
-const SNAP_THRESHOLD = 100;
+const SNAP_THRESHOLD = 80;
 
 export default function BottomSheet({ children, peekContent }: BottomSheetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -19,12 +19,12 @@ export default function BottomSheet({ children, peekContent }: BottomSheetProps)
   const currentTranslateRef = useRef(0);
   const sheetRef = useRef<HTMLDivElement>(null);
 
-  const expandedOffset = 0;
-  const collapsedOffset = typeof window !== 'undefined'
-    ? window.innerHeight * (EXPANDED_VH / 100) - COLLAPSED_HEIGHT
-    : 500;
+  const getCollapsedOffset = useCallback(() => {
+    if (typeof window === 'undefined') return 500;
+    return window.innerHeight * (EXPANDED_VH / 100) - COLLAPSED_HEIGHT;
+  }, []);
 
-  const baseOffset = isExpanded ? expandedOffset : collapsedOffset;
+  const baseOffset = isExpanded ? 0 : getCollapsedOffset();
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     setIsDragging(true);
@@ -44,12 +44,10 @@ export default function BottomSheet({ children, peekContent }: BottomSheetProps)
     const diff = currentTranslateRef.current;
 
     if (isExpanded) {
-      // Dragging down from expanded
       if (diff > SNAP_THRESHOLD) {
         setIsExpanded(false);
       }
     } else {
-      // Dragging up from collapsed
       if (diff < -SNAP_THRESHOLD) {
         setIsExpanded(true);
       }
@@ -66,7 +64,6 @@ export default function BottomSheet({ children, peekContent }: BottomSheetProps)
     setIsExpanded(false);
   }, []);
 
-  // Prevent body scroll when expanded
   useEffect(() => {
     if (isExpanded) {
       document.body.style.overflow = 'hidden';
@@ -83,12 +80,9 @@ export default function BottomSheet({ children, peekContent }: BottomSheetProps)
       {/* Backdrop */}
       {isExpanded && (
         <div
-          className="fixed inset-0 z-40 bg-black/30"
+          className="fixed inset-0 z-40 bg-black/30 transition-opacity"
           onClick={handleOverlayClick}
           aria-hidden="true"
-          style={{
-            transition: isDragging ? 'none' : 'opacity 300ms ease-out',
-          }}
         />
       )}
 
@@ -100,6 +94,7 @@ export default function BottomSheet({ children, peekContent }: BottomSheetProps)
           height: `${EXPANDED_VH}vh`,
           transform: `translateY(calc(${baseOffset}px + ${isDragging ? translateY : 0}px))`,
           transition: isDragging ? 'none' : 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+          touchAction: 'none',
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -108,8 +103,8 @@ export default function BottomSheet({ children, peekContent }: BottomSheetProps)
         {/* Drag handle + peek */}
         <button
           onClick={handleToggle}
-          className="w-full flex flex-col items-center"
-          style={{ height: `${COLLAPSED_HEIGHT}px` }}
+          className="w-full flex flex-col items-center touch-target"
+          style={{ height: `${COLLAPSED_HEIGHT}px`, minHeight: '44px' }}
           aria-label={isExpanded ? 'Zwiń koszyk' : 'Rozwiń koszyk'}
         >
           <div className="w-8 h-1 rounded-full bg-border-strong mt-2 mb-2" aria-hidden="true" />
@@ -120,8 +115,11 @@ export default function BottomSheet({ children, peekContent }: BottomSheetProps)
 
         {/* Scrollable content */}
         <div
-          className="overflow-y-auto px-4 pb-8"
-          style={{ height: `calc(${EXPANDED_VH}vh - ${COLLAPSED_HEIGHT}px)` }}
+          className="overflow-y-auto overscroll-contain px-4 pb-8"
+          style={{
+            height: `calc(${EXPANDED_VH}vh - ${COLLAPSED_HEIGHT}px)`,
+            touchAction: 'pan-y',
+          }}
         >
           {children}
         </div>

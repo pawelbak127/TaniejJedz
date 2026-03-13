@@ -1,11 +1,10 @@
 'use client';
 
 import { ExternalLink } from 'lucide-react';
-import type { Platform, PlatformComparisonResult } from '@/generated/api-types';
+import type { PlatformComparisonResult } from '@/generated/api-types';
 import { getPlatformMeta } from '@/lib/platforms';
 import { formatPrice } from '@/lib/format';
 import { useClipboardCopy } from '@/hooks/useClipboardCopy';
-import { useComparisonStore } from '@/stores/comparison';
 
 interface OrderButtonProps {
   result: PlatformComparisonResult;
@@ -50,11 +49,11 @@ export default function OrderButton({ result, isCheapest }: OrderButtonProps) {
     return (
       <button
         onClick={handleClick}
-        className="w-full h-11 px-4 rounded-sm font-medium text-sm text-text-inverse flex items-center justify-center gap-2 transition-colors duration-fast hover:opacity-90"
+        className="w-full min-h-[44px] h-11 px-4 rounded-sm font-medium text-sm text-text-inverse flex items-center justify-center gap-2 transition-colors duration-fast hover:opacity-90 active:opacity-80"
         style={{ backgroundColor: 'var(--color-accent-dark)' }}
       >
-        <span>Zamów na {meta.name} — {formatPrice(result.grand_total_grosz)}</span>
-        <ExternalLink size={14} aria-hidden="true" />
+        <span className="truncate">Zamów na {meta.name} — {formatPrice(result.grand_total_grosz)}</span>
+        <ExternalLink size={14} className="shrink-0" aria-hidden="true" />
       </button>
     );
   }
@@ -62,10 +61,10 @@ export default function OrderButton({ result, isCheapest }: OrderButtonProps) {
   return (
     <button
       onClick={handleClick}
-      className="w-full h-10 px-4 rounded-sm font-medium text-sm text-text-primary border border-border-strong flex items-center justify-center gap-2 transition-colors duration-fast hover:bg-bg hover:border-text-tertiary"
+      className="w-full min-h-[44px] h-10 px-4 rounded-sm font-medium text-sm text-text-primary border border-border-strong flex items-center justify-center gap-2 transition-colors duration-fast hover:bg-bg hover:border-text-tertiary active:bg-border"
     >
-      <span>Zamów na {meta.name} — {formatPrice(result.grand_total_grosz)}</span>
-      <ExternalLink size={14} className="text-text-tertiary" aria-hidden="true" />
+      <span className="truncate">Zamów na {meta.name} — {formatPrice(result.grand_total_grosz)}</span>
+      <ExternalLink size={14} className="shrink-0 text-text-tertiary" aria-hidden="true" />
     </button>
   );
 }

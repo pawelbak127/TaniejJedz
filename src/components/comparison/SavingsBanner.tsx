@@ -14,6 +14,7 @@ export default function SavingsBanner() {
     <div
       className="flex items-center gap-3 p-3 rounded-md border border-savings-border bg-savings-bg animate-savings-in"
       aria-live="polite"
+      role="status"
     >
       <PiggyBank size={20} className="shrink-0 text-savings-text" aria-hidden="true" />
       <p className="text-sm font-semibold text-savings-text">
@@ -34,9 +35,12 @@ export default function SavingsBanner() {
             transform: translateY(0);
           }
         }
-        @media (prefers-reduced-motion: no-preference) {
+        .animate-savings-in {
+          animation: savings-in 400ms cubic-bezier(0.32, 0.72, 0, 1) both;
+        }
+        @media (prefers-reduced-motion: reduce) {
           .animate-savings-in {
-            animation: savings-in 400ms cubic-bezier(0.32, 0.72, 0, 1) both;
+            animation: none;
           }
         }
       `}</style>

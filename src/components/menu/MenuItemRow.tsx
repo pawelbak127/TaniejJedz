@@ -66,7 +66,7 @@ export default function MenuItemRow({ item, restaurantId }: MenuItemRowProps) {
             </p>
           )}
 
-          {/* Prices */}
+          {/* Prices — desktop: row, mobile: stacked */}
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
             {availablePlatforms.map((platform) => {
               const price = item.prices[platform];
@@ -82,16 +82,25 @@ export default function MenuItemRow({ item, restaurantId }: MenuItemRowProps) {
             })}
           </div>
 
+          {/* Savings hint */}
+          {item.savings_grosz > 100 && (
+            <p className="text-xs text-accent-dark font-medium mt-1">
+              Różnica do {(item.savings_grosz / 100).toFixed(2).replace('.', ',')} zł
+            </p>
+          )}
+
           {/* Feedback link */}
-          <div className="mt-1">
+          <div className="mt-1.5">
             <FeedbackButton restaurantId={restaurantId} itemId={item.id} />
           </div>
         </div>
 
-        <AddToCartButton
-          onClick={() => setIsExpanded(!isExpanded)}
-          isExpanded={isExpanded}
-        />
+        <div className="shrink-0 flex items-start pt-0.5">
+          <AddToCartButton
+            onClick={() => setIsExpanded(!isExpanded)}
+            isExpanded={isExpanded}
+          />
+        </div>
       </div>
 
       {/* Expanded modifier selector */}

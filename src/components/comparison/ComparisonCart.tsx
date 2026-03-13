@@ -1,16 +1,16 @@
 'use client';
 
 import { useCallback } from 'react';
-import { ShoppingCart, Trash2 } from 'lucide-react';
+import { ShoppingCart, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useComparisonStore } from '@/stores/comparison';
 import { useComparisonSSE } from '@/hooks/useComparisonSSE';
 import { useAddress } from '@/hooks/useAddress';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/ui/Toast';
 import Button from '@/components/ui/Button';
-import { pluralizeItems, formatPrice } from '@/lib/format';
+import AnimatedPrice from '@/components/shared/AnimatedPrice';
+import { pluralizeItems } from '@/lib/format';
 import { PLATFORM_ORDER, getPlatformMeta } from '@/lib/platforms';
-import type { Platform } from '@/generated/api-types';
 import CartItemRow from './CartItemRow';
 import PlatformStatusBar from './PlatformStatusBar';
 import PlatformTotalCard from './PlatformTotalCard';
@@ -36,8 +36,8 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
   const { address } = useAddress();
   const { addToast } = useToast();
 
-  // SSE connection
-  useComparisonSSE(comparisonId);
+  // SSE connection with error state
+  const { sseError, retrySSE } = useComparisonSSE(comparisonId);
 
   const count = itemCount();
   const itemsArray = Array.from(items.values());
@@ -67,11 +67,14 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
     }
   }, [count, itemsArray, restaurantId, address, setComparisonId, addToast]);
 
-  // Sort platform results: cheapest first
+  // Sort platform results: open & cheapest first
   const sortedResults = Array.from(platformResults.values())
     .filter((r) => r.is_open)
     .sort((a, b) => a.grand_total_grosz - b.grand_total_grosz);
 
+  const allFailed = comparisonReady && sortedResults.length === 0 && cheapestPlatform === null;
+
+  // === Empty state ===
   if (count === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
@@ -95,7 +98,7 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
         </h3>
         <button
           onClick={clearCart}
-          className="text-xs text-text-tertiary hover:text-danger transition-colors duration-fast flex items-center gap-1"
+          className="text-xs text-text-tertiary hover:text-danger transition-colors duration-fast flex items-center gap-1 touch-target justify-center"
         >
           <Trash2 size={12} />
           Wyczyść
@@ -129,9 +132,10 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
                   />
                   {meta.shortName}
                 </span>
-                <span className="tabular-nums text-text-primary font-medium">
-                  {formatPrice(sub)}
-                </span>
+                <AnimatedPrice
+                  valueGrosz={sub}
+                  className="text-text-primary font-medium text-xs"
+                />
               </div>
             );
           })}
@@ -140,19 +144,63 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
 
       {/* Compare button */}
       {!comparisonId && (
-        <Button
-          variant="primary"
-          size="lg"
-          fullWidth
-          onClick={handleCompare}
-          disabled={count === 0}
-        >
-          Porównaj ceny
-        </Button>
+        <div className="relative group">
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            onClick={handleCompare}
+            disabled={count === 0}
+          >
+            Porównaj ceny
+          </Button>
+          {count === 0 && (
+            <span className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-sm bg-text-primary text-text-inverse text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              Dodaj produkty do koszyka
+            </span>
+          )}
+        </div>
       )}
 
       {/* SSE Status Bar */}
       {comparisonId && <PlatformStatusBar />}
+
+      {/* SSE connection error — manual retry */}
+      {sseError && (
+        <div className="flex items-center gap-3 p-3 rounded-md border border-danger/20 bg-danger/5">
+          <AlertCircle size={16} className="shrink-0 text-danger" aria-hidden="true" />
+          <p className="flex-1 text-xs text-text-primary">
+            Połączenie przerwane. Niektóre platformy mogły nie odpowiedzieć.
+          </p>
+          <Button variant="outline" size="sm" icon={<RefreshCw size={12} />} onClick={retrySSE}>
+            Ponów
+          </Button>
+        </div>
+      )}
+
+      {/* All platforms failed */}
+      {allFailed && (
+        <div className="flex flex-col items-center gap-3 p-4 rounded-md border border-danger/20 bg-danger/5 text-center">
+          <AlertCircle size={24} className="text-danger" aria-hidden="true" />
+          <p className="text-sm font-medium text-text-primary">
+            Nie udało się pobrać cen
+          </p>
+          <p className="text-xs text-text-secondary">
+            Żadna platforma nie odpowiedziała. Spróbuj za chwilę.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<RefreshCw size={14} />}
+            onClick={() => {
+              resetComparison();
+              handleCompare();
+            }}
+          >
+            Spróbuj ponownie
+          </Button>
+        </div>
+      )}
 
       {/* Savings Banner */}
       <SavingsBanner />
@@ -161,12 +209,17 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
       {comparisonReady && sortedResults.length > 0 && (
         <div className="flex flex-col gap-3">
           {sortedResults.map((result, index) => (
-            <PlatformTotalCard
+            <div
               key={result.platform}
-              result={result}
-              isCheapest={result.platform === cheapestPlatform}
-              rank={index + 1}
-            />
+              className="animate-fade-in-up"
+              style={{ animationDelay: `${index * 80}ms` }}
+            >
+              <PlatformTotalCard
+                result={result}
+                isCheapest={result.platform === cheapestPlatform}
+                rank={index + 1}
+              />
+            </div>
           ))}
         </div>
       )}

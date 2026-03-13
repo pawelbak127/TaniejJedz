@@ -13,11 +13,16 @@ function StatusDot({ platform, status }: { platform: Platform; status: PlatformS
   switch (status) {
     case 'fetching':
       return (
-        <span
-          className="w-2.5 h-2.5 rounded-full shrink-0 animate-pulse"
-          style={{ backgroundColor: meta.color }}
-          aria-hidden="true"
-        />
+        <span className="relative shrink-0" aria-hidden="true">
+          <span
+            className="block w-2.5 h-2.5 rounded-full animate-status-pulse"
+            style={{ backgroundColor: meta.color }}
+          />
+          <span
+            className="absolute inset-0 w-2.5 h-2.5 rounded-full animate-ping opacity-40"
+            style={{ backgroundColor: meta.color }}
+          />
+        </span>
       );
     case 'ready':
     case 'cached':
@@ -43,7 +48,7 @@ function StatusDot({ platform, status }: { platform: Platform; status: PlatformS
           aria-hidden="true"
         />
       );
-    default: // idle
+    default:
       return (
         <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-border" aria-hidden="true" />
       );
@@ -54,11 +59,11 @@ function StatusIcon({ status }: { status: PlatformStatus }) {
   switch (status) {
     case 'ready':
     case 'cached':
-      return <Check size={11} className="text-fresh" />;
+      return <Check size={12} className="text-fresh" strokeWidth={3} />;
     case 'timeout':
-      return <AlertTriangle size={11} className="text-warning" />;
+      return <AlertTriangle size={12} className="text-warning" />;
     case 'error':
-      return <X size={11} className="text-danger" />;
+      return <X size={12} className="text-danger" strokeWidth={3} />;
     default:
       return null;
   }
@@ -72,7 +77,7 @@ function statusLabel(status: PlatformStatus, ageSeconds?: number, nextOpen?: str
     case 'cached': return ageSeconds ? `sprzed ${Math.round(ageSeconds / 60)} min` : 'z cache';
     case 'timeout': return 'przekroczono limit czasu';
     case 'closed': return nextOpen ? `zamknięte (otwiera: ${nextOpen})` : 'zamknięte';
-    case 'error': return 'błąd';
+    case 'error': return 'niedostępne';
   }
 }
 
@@ -92,16 +97,23 @@ export default function PlatformStatusBar() {
         const status = platformStatus.get(platform) || 'idle';
         const meta = getPlatformMeta(platform);
         const label = statusLabel(status);
+        const isInactive = status === 'error' || status === 'closed' || status === 'timeout';
 
         return (
-          <div key={platform} className="flex items-center gap-1.5">
+          <div
+            key={platform}
+            className={[
+              'flex items-center gap-1.5',
+              isInactive ? 'opacity-50' : '',
+            ].join(' ')}
+          >
             <StatusDot platform={platform} status={status} />
             <span className="text-xs font-medium text-text-secondary">
               {meta.shortName}
             </span>
             <StatusIcon status={status} />
             {label && (
-              <span className="text-xs text-text-tertiary">
+              <span className={`text-xs ${status === 'fetching' ? 'text-text-secondary italic' : 'text-text-tertiary'}`}>
                 {label}
               </span>
             )}
