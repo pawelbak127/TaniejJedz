@@ -1,32 +1,49 @@
-export type Platform = "pyszne" | "ubereats" | "wolt" | "glovo";
+import type { Platform } from '@/generated/api-types';
 
 export interface PlatformMeta {
   name: string;
   shortName: string;
   color: string;
+  cssVar: string;
 }
 
 export const PLATFORMS: Record<Platform, PlatformMeta> = {
-  pyszne: { 
-    name: "Pyszne.pl", 
-    shortName: "Pyszne", 
-    color: "var(--color-pyszne)" 
+  pyszne: {
+    name: 'Pyszne.pl',
+    shortName: 'Pyszne',
+    color: '#FF8000',
+    cssVar: 'var(--color-pyszne)',
   },
-  wolt: { 
-    name: "Wolt", 
-    shortName: "Wolt", 
-    color: "var(--color-wolt)" 
+  wolt: {
+    name: 'Wolt',
+    shortName: 'Wolt',
+    color: '#009DE0',
+    cssVar: 'var(--color-wolt)',
   },
-  ubereats: { 
-    name: "Uber Eats", 
-    shortName: "UberEats", 
-    color: "var(--color-ubereats)" 
+  ubereats: {
+    name: 'Uber Eats',
+    shortName: 'UberEats',
+    color: '#06C167',
+    cssVar: 'var(--color-ubereats)',
   },
-  glovo: { 
-    name: "Glovo", 
-    shortName: "Glovo", 
-    color: "var(--color-glovo)" 
+  glovo: {
+    name: 'Glovo',
+    shortName: 'Glovo',
+    color: '#FFC244',
+    cssVar: 'var(--color-glovo)',
   },
 } as const;
 
-export const SUPPORTED_PLATFORMS: Platform[] = ["pyszne", "wolt", "ubereats", "glovo"];
+export const PLATFORM_ORDER: Platform[] = ['pyszne', 'wolt', 'ubereats', 'glovo'];
+
+export function getPlatformMeta(platform: Platform): PlatformMeta {
+  return PLATFORMS[platform];
+}
+
+export function getPlatformName(platform: Platform): string {
+  return PLATFORMS[platform].name;
+}
+
+export function getPlatformColor(platform: Platform): string {
+  return PLATFORMS[platform].color;
+}

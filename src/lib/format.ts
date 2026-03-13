@@ -1,33 +1,51 @@
-/**
- * Formats a given price in grosze to a Polish currency string.
- * Ensures conversion from integer to standard decimal representation.
- */
+const priceFormatter = new Intl.NumberFormat('pl-PL', {
+  style: 'currency',
+  currency: 'PLN',
+});
+
 export function formatPrice(grosz: number): string {
-  return new Intl.NumberFormat('pl-PL', {
-    style: 'currency',
-    currency: 'PLN',
-  }).format(grosz / 100);
+  return priceFormatter.format(grosz / 100);
 }
 
-/**
- * Formats an ISO date string to a relative time string (e.g., "5 min temu").
- */
-export function formatRelativeTime(isoDate: string): string {
-  const date = new Date(isoDate);
-  const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+export function formatPriceShort(grosz: number): string {
+  const value = grosz / 100;
+  return `${value.toFixed(2).replace('.', ',')} zł`;
+}
 
-  if (diffInSeconds < 60) return 'przed chwilą';
-  
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) return `${diffInMinutes} min temu`;
-  
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) {
-    if (diffInHours === 1) return '1 godzinę temu';
-    if (diffInHours >= 2 && diffInHours <= 4) return `${diffInHours} godziny temu`;
-    return `${diffInHours} godzin temu`;
+const relativeTimeFormatter = new Intl.RelativeTimeFormat('pl-PL', {
+  numeric: 'auto',
+  style: 'short',
+});
+
+export function formatRelativeTime(isoDatetime: string): string {
+  const now = Date.now();
+  const then = new Date(isoDatetime).getTime();
+  const diffSeconds = Math.round((then - now) / 1000);
+  const diffMinutes = Math.round(diffSeconds / 60);
+
+  if (Math.abs(diffMinutes) < 1) {
+    return 'teraz';
   }
-  
-  return date.toLocaleDateString('pl-PL');
+  if (Math.abs(diffMinutes) < 60) {
+    return relativeTimeFormatter.format(diffMinutes, 'minute');
+  }
+  const diffHours = Math.round(diffMinutes / 60);
+  return relativeTimeFormatter.format(diffHours, 'hour');
+}
+
+export function formatDeliveryTime(minutes: number | null): string {
+  if (minutes === null) return '—';
+  return `${minutes} min`;
+}
+
+export function pluralizeRestaurants(count: number): string {
+  if (count === 1) return '1 restauracja';
+  if (count >= 2 && count <= 4) return `${count} restauracje`;
+  return `${count} restauracji`;
+}
+
+export function pluralizeItems(count: number): string {
+  if (count === 1) return '1 produkt';
+  if (count >= 2 && count <= 4) return `${count} produkty`;
+  return `${count} produktów`;
 }

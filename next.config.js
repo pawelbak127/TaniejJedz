@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Wymuszenie importowania globalnego css z odpowiedniego pliku
-  // Kiedy backend będzie gotowy, odkomentuj poniższy blok:
+  // Phase 2: uncomment when backend is ready
   // async rewrites() {
   //   return [
   //     {

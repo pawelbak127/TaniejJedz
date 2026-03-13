@@ -12,9 +12,8 @@ export async function GET(
   { params }: { params: { platform: string; id: string } }
 ) {
   const url = DEEP_LINKS[params.platform] || "https://taniejjedz.pl";
-  
-  // W produkcji: loguj affiliate click do bazy
+
   console.log(`[MOCK REDIRECT] ${params.platform}/${params.id} → ${url}`);
-  
+
   return NextResponse.redirect(url, { status: 302 });
 }

@@ -1,38 +1,38 @@
-import type { Metadata } from "next";
-import { DM_Sans, JetBrains_Mono } from "next/font/google";
-import "@/styles/globals.css";
-
-const dmSans = DM_Sans({ 
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "600"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const jetBrainsMono = JetBrains_Mono({
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "500"],
-  variable: "--font-mono",
-  display: "swap",
-});
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "TaniejJedz.pl - Porównaj ceny dostaw jedzenia",
-  description: "Porównaj ceny dostaw z Pyszne.pl, Uber Eats, Wolt i Glovo w Twojej okolicy. Sprawdź, gdzie zamówisz najtaniej i zaoszczędź na jedzeniu.",
+  title: {
+    default: 'TaniejJedz.pl — Porównaj ceny dostaw jedzenia',
+    template: '%s | TaniejJedz.pl',
+  },
+  description:
+    'Porównaj ceny dostaw jedzenia w Twojej okolicy. Sprawdzamy Pyszne.pl, Uber Eats, Wolt i Glovo — żebyś płacił mniej.',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+  openGraph: {
+    type: 'website',
+    locale: 'pl_PL',
+    siteName: 'TaniejJedz.pl',
+  },
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="pl" className={`${dmSans.variable} ${jetBrainsMono.variable}`}>
-      <body className="antialiased min-h-screen flex flex-col">
-        {/* Toast container will be injected here in later phases */}
-        <main className="flex-grow">
-          {children}
-        </main>
+    <html lang="pl">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen font-sans">
+        {children}
       </body>
     </html>
   );

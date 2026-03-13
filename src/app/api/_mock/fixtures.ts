@@ -1,7 +1,3 @@
-// ============================================================
-// TYPY (zgodne z OpenAPI contract z FRONTEND-PROMPT)
-// ============================================================
-
 export type Platform = "pyszne" | "ubereats" | "wolt" | "glovo";
 
 export interface RestaurantSummary {
@@ -26,10 +22,6 @@ interface PlatformAvailability {
   delivery_minutes?: number | null;
   delivery_fee_grosz?: number | null;
 }
-
-// ============================================================
-// RESTAURACJE — 12 realistycznych wpisów dla Warszawy
-// ============================================================
 
 export const RESTAURANTS: RestaurantSummary[] = [
   {
@@ -236,7 +228,7 @@ export const RESTAURANTS: RestaurantSummary[] = [
 ];
 
 // ============================================================
-// MENU — Pełne menu dla rest-001 (Pizzeria Roma)
+// MENU — Full menu for rest-001 (Pizzeria Roma)
 // ============================================================
 
 export const MENU_REST_001 = {
@@ -245,7 +237,7 @@ export const MENU_REST_001 = {
     name: "Pizzeria Roma",
     platforms_available: ["pyszne", "wolt", "ubereats"] as Platform[],
     platforms_open: ["pyszne", "wolt", "ubereats"] as Platform[],
-    platforms_closed: [],
+    platforms_closed: [] as { platform: Platform; next_open: string }[],
   },
   categories: [
     {
@@ -445,7 +437,7 @@ export const MENU_REST_001 = {
 };
 
 // ============================================================
-// PORÓWNANIE — Symulacja wyniku SSE dla rest-001
+// COMPARISON — SSE result simulation for rest-001
 // ============================================================
 
 export const COMPARISON_RESULT_REST_001 = {
@@ -463,7 +455,7 @@ export const COMPARISON_RESULT_REST_001 = {
     meets_minimum_order: true,
     minimum_order_grosz: 3000,
     estimated_delivery_minutes: 35,
-    missing_items: [],
+    missing_items: [] as string[],
     deep_link: "/api/v1/redirect/pyszne/rest-001?session=mock-session",
   },
   wolt: {
@@ -480,7 +472,7 @@ export const COMPARISON_RESULT_REST_001 = {
     meets_minimum_order: true,
     minimum_order_grosz: 2500,
     estimated_delivery_minutes: 30,
-    missing_items: [],
+    missing_items: [] as string[],
     deep_link: "/api/v1/redirect/wolt/rest-001?session=mock-session",
   },
   ubereats: {
@@ -497,29 +489,27 @@ export const COMPARISON_RESULT_REST_001 = {
     meets_minimum_order: true,
     minimum_order_grosz: 4000,
     estimated_delivery_minutes: 40,
-    missing_items: [],
+    missing_items: [] as string[],
     deep_link: "/api/v1/redirect/ubereats/rest-001?session=mock-session",
   },
 };
 
 // ============================================================
-// HELPER: Generuj menu dla dowolnej restauracji
+// HELPER: Generate menu for any restaurant
 // ============================================================
 
 export function getMenuForRestaurant(restaurantId: string) {
-  // Dla rest-001 zwróć pełne menu
   if (restaurantId === "rest-001") return MENU_REST_001;
-  
-  // Dla pozostałych: generuj uproszczone menu z 3-5 itemami
+
   const restaurant = RESTAURANTS.find(r => r.id === restaurantId);
   if (!restaurant) return null;
-  
+
   const platforms = Object.entries(restaurant.platforms)
-    .filter(([_, v]) => v.available)
+    .filter(([, v]) => v.available)
     .map(([k]) => k as Platform);
-  
+
   const generatePrices = (base: number) => {
-    const prices: Record<string, any> = {};
+    const prices: Record<string, { price_grosz: number; is_available: boolean; is_open: boolean; last_checked: string }> = {};
     for (const p of platforms) {
       const variance = Math.round(base * (0.85 + Math.random() * 0.3));
       prices[p] = {
@@ -531,6 +521,22 @@ export function getMenuForRestaurant(restaurantId: string) {
     }
     return prices;
   };
+
+  const findCheapestOpen = (prices: Record<string, { price_grosz: number; is_open: boolean }>) => {
+    let cheapest: Platform | null = null;
+    let cheapestPrice = Infinity;
+    for (const [p, v] of Object.entries(prices)) {
+      if (v.is_open && v.price_grosz < cheapestPrice) {
+        cheapestPrice = v.price_grosz;
+        cheapest = p as Platform;
+      }
+    }
+    return cheapest;
+  };
+
+  const item1Prices = generatePrices(2800);
+  const item2Prices = generatePrices(3500);
+  const item3Prices = generatePrices(1500);
 
   return {
     restaurant: {
@@ -546,9 +552,39 @@ export function getMenuForRestaurant(restaurantId: string) {
       {
         name: "Popularne",
         items: [
-          { id: `${restaurantId}-item-1`, name: "Danie dnia", description: "Najpopularniejsze danie w restauracji", size_label: null, image_url: null, prices: generatePrices(2800), cheapest_open_platform: platforms[0], savings_grosz: 300, platform_modifiers: {} },
-          { id: `${restaurantId}-item-2`, name: "Zestaw obiadowy", description: "Zupa + drugie danie", size_label: null, image_url: null, prices: generatePrices(3500), cheapest_open_platform: platforms[0], savings_grosz: 500, platform_modifiers: {} },
-          { id: `${restaurantId}-item-3`, name: "Przystawka", description: "Przystawka dnia", size_label: null, image_url: null, prices: generatePrices(1500), cheapest_open_platform: platforms[0], savings_grosz: 200, platform_modifiers: {} },
+          {
+            id: `${restaurantId}-item-1`,
+            name: "Danie dnia",
+            description: "Najpopularniejsze danie w restauracji",
+            size_label: null,
+            image_url: null,
+            prices: item1Prices,
+            cheapest_open_platform: findCheapestOpen(item1Prices),
+            savings_grosz: 300,
+            platform_modifiers: {},
+          },
+          {
+            id: `${restaurantId}-item-2`,
+            name: "Zestaw obiadowy",
+            description: "Zupa + drugie danie",
+            size_label: null,
+            image_url: null,
+            prices: item2Prices,
+            cheapest_open_platform: findCheapestOpen(item2Prices),
+            savings_grosz: 500,
+            platform_modifiers: {},
+          },
+          {
+            id: `${restaurantId}-item-3`,
+            name: "Przystawka",
+            description: "Przystawka dnia",
+            size_label: null,
+            image_url: null,
+            prices: item3Prices,
+            cheapest_open_platform: findCheapestOpen(item3Prices),
+            savings_grosz: 200,
+            platform_modifiers: {},
+          },
         ],
       },
     ],
