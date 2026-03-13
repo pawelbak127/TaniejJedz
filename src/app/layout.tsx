@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { DM_Sans } from 'next/font/google';
+import { DM_Sans, JetBrains_Mono } from 'next/font/google';
 import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
 
@@ -8,6 +8,13 @@ const dmSans = DM_Sans({
   weight: ['400', '500', '600'],
   display: 'swap',
   variable: '--font-sans',
+});
+
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500'],
+  display: 'swap',
+  variable: '--font-mono',
 });
 
 export const metadata: Metadata = {
@@ -31,8 +38,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pl" className={dmSans.variable}>
-      <body className="min-h-screen font-sans">
+    <html lang="pl" className={`${dmSans.variable} ${jetBrainsMono.variable}`}>
+      <body className="min-h-screen font-sans bg-bg text-text-primary antialiased">
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
