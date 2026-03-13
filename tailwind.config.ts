@@ -63,7 +63,7 @@ const config: Config = {
         xl: "var(--shadow-xl)",
       },
       fontFamily: {
-        sans: ["var(--font-dm-sans)", "system-ui", "-apple-system", "sans-serif"],
+        sans: ["var(--font-sans)", "system-ui", "-apple-system", "sans-serif"],
         mono: ["var(--font-mono)"],
       },
       fontSize: {
@@ -77,6 +77,11 @@ const config: Config = {
       },
       maxWidth: {
         container: "1280px",
+      },
+      transitionDuration: {
+        fast: "120ms",
+        base: "200ms",
+        slow: "350ms",
       },
     },
   },

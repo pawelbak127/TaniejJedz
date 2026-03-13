@@ -34,7 +34,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="text-[var(--text-sm)] font-medium text-[var(--color-text-primary)]"
+            className="text-sm font-medium text-text-primary"
           >
             {label}
           </label>
@@ -43,7 +43,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         <div className="relative">
           {icon && (
             <span
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] pointer-events-none"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
               aria-hidden="true"
             >
               {icon}
@@ -56,17 +56,17 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             aria-invalid={!!error}
             aria-describedby={errorId || helperId}
             className={[
-              'w-full h-10 px-3 text-[var(--text-base)]',
-              'bg-[var(--color-surface)]',
-              'border rounded-[var(--radius-sm)]',
-              'text-[var(--color-text-primary)]',
-              'placeholder:text-[var(--color-text-tertiary)]',
-              'transition-colors duration-[var(--transition-fast)]',
+              'w-full h-10 px-3 text-base',
+              'bg-surface',
+              'border rounded-sm',
+              'text-text-primary',
+              'placeholder:text-text-tertiary',
+              'transition-colors duration-fast',
               'focus:outline-none focus:ring-2 focus:ring-offset-0',
               error
-                ? 'border-[var(--color-danger)] focus:ring-[var(--color-danger)]/30'
-                : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)] focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]/20',
-              'disabled:bg-[var(--color-bg)] disabled:text-[var(--color-text-tertiary)] disabled:cursor-not-allowed',
+                ? 'border-danger focus:ring-danger/30'
+                : 'border-border hover:border-border-strong focus:border-primary focus:ring-primary/20',
+              'disabled:bg-bg disabled:text-text-tertiary disabled:cursor-not-allowed',
               icon ? 'pl-10' : '',
             ].join(' ')}
             {...rest}
@@ -76,7 +76,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         {error && (
           <p
             id={errorId}
-            className="text-[var(--text-xs)] text-[var(--color-danger)]"
+            className="text-xs text-danger"
             role="alert"
           >
             {error}
@@ -86,7 +86,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         {helperText && !error && (
           <p
             id={helperId}
-            className="text-[var(--text-xs)] text-[var(--color-text-tertiary)]"
+            className="text-xs text-text-tertiary"
           >
             {helperText}
           </p>

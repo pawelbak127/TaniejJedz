@@ -39,8 +39,7 @@
   --color-stale-mild: #F59E0B;
   --color-stale-severe: #EF4444;
 
-  /* Typography */
-  --font-sans: 'DM Sans', system-ui, -apple-system, sans-serif;
+  /* Typography — DM Sans loaded via next/font, --font-sans set on <html> */
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   /* Font sizes — modular scale 1.200 */
@@ -84,7 +83,6 @@
 }
 
 body {
-  font-family: var(--font-sans);
   background-color: var(--color-bg);
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;

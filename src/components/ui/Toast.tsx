@@ -97,9 +97,9 @@ const iconMap: Record<ToastType, typeof CheckCircle2> = {
 };
 
 const iconColorMap: Record<ToastType, string> = {
-  success: 'var(--color-accent-dark)',
-  error: 'var(--color-danger)',
-  info: 'var(--color-primary)',
+  success: 'text-accent-dark',
+  error: 'text-danger',
+  info: 'text-primary',
 };
 
 function ToastContainer({
@@ -122,22 +122,20 @@ function ToastContainer({
         return (
           <div
             key={toast.id}
-            className="flex items-start gap-3 p-3 rounded-[var(--radius-md)] bg-[var(--color-surface)] border border-[var(--color-border)] animate-slide-up"
-            style={{ boxShadow: 'var(--shadow-lg)' }}
+            className="flex items-start gap-3 p-3 rounded-md bg-surface border border-border shadow-lg animate-slide-up"
             role="alert"
           >
             <Icon
               size={18}
-              className="shrink-0 mt-0.5"
-              style={{ color: iconColorMap[toast.type] }}
+              className={`shrink-0 mt-0.5 ${iconColorMap[toast.type]}`}
               aria-hidden="true"
             />
-            <p className="flex-1 text-[var(--text-sm)] text-[var(--color-text-primary)] leading-snug">
+            <p className="flex-1 text-sm text-text-primary leading-snug">
               {toast.message}
             </p>
             <button
               onClick={() => onDismiss(toast.id)}
-              className="shrink-0 p-0.5 rounded-[var(--radius-sm)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] transition-colors duration-[var(--transition-fast)]"
+              className="shrink-0 p-0.5 rounded-sm text-text-tertiary hover:text-text-secondary hover:bg-bg transition-colors duration-fast"
               aria-label="Zamknij powiadomienie"
             >
               <X size={14} />

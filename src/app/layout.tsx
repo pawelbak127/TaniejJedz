@@ -1,6 +1,14 @@
 import type { Metadata } from 'next';
+import { DM_Sans } from 'next/font/google';
 import { ToastProvider } from '@/components/ui/Toast';
 import './globals.css';
+
+const dmSans = DM_Sans({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600'],
+  display: 'swap',
+  variable: '--font-sans',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -23,15 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pl">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="pl" className={dmSans.variable}>
       <body className="min-h-screen font-sans">
         <ToastProvider>{children}</ToastProvider>
       </body>

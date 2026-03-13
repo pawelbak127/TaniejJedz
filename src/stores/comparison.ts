@@ -209,12 +209,11 @@ export const useComparisonStore = create<ComparisonStore>((set, get) => ({
   },
 
   openPlatforms: () => {
-    const platforms: Platform[] = [];
-    get().platformResults.forEach((result, platform) => {
-      if (result.is_open) {
-        platforms.push(platform);
-      }
+    const platformSet = new Set<Platform>();
+    get().items.forEach((item) => {
+      const platforms = Object.keys(item.basePrices) as Platform[];
+      platforms.forEach((p) => platformSet.add(p));
     });
-    return platforms;
+    return Array.from(platformSet);
   },
 }));

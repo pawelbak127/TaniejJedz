@@ -61,7 +61,6 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
 
   const debouncedQuery = useDebounce(query, DEBOUNCE_ADDRESS_MS);
 
-  // Fetch suggestions on debounced query change
   useEffect(() => {
     if (debouncedQuery.trim().length < 2) {
       setSuggestions([]);
@@ -72,7 +71,6 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
 
     setIsLoading(true);
 
-    // Simulate network delay for mock
     const timer = setTimeout(() => {
       const results = searchMockSuggestions(debouncedQuery);
       setSuggestions(results);
@@ -84,7 +82,6 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
     return () => clearTimeout(timer);
   }, [debouncedQuery]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -126,7 +123,6 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!isOpen || suggestions.length === 0) {
       if (e.key === 'Enter' && suggestions.length === 0 && query.trim().length >= 2) {
-        // Re-search and pick first
         const results = searchMockSuggestions(query);
         if (results.length > 0) {
           selectAddress(results[0]);
@@ -159,7 +155,6 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
     }
   };
 
-  // Scroll active item into view
   useEffect(() => {
     if (activeIndex >= 0 && listRef.current) {
       const item = listRef.current.children[activeIndex] as HTMLElement;
@@ -173,7 +168,7 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
     <div ref={containerRef} className="relative w-full">
       <div className="relative">
         <span
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] pointer-events-none"
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none"
           aria-hidden="true"
         >
           <Search size={isLarge ? 20 : 18} />
@@ -200,22 +195,22 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
           aria-activedescendant={activeIndex >= 0 ? `address-option-${activeIndex}` : undefined}
           aria-invalid={!!error}
           className={[
-            'w-full bg-[var(--color-surface)]',
-            'border rounded-[var(--radius-sm)]',
-            'text-[var(--color-text-primary)]',
-            'placeholder:text-[var(--color-text-tertiary)]',
-            'transition-colors duration-[var(--transition-fast)]',
+            'w-full bg-surface',
+            'border rounded-sm',
+            'text-text-primary',
+            'placeholder:text-text-tertiary',
+            'transition-colors duration-fast',
             'focus:outline-none focus:ring-2 focus:ring-offset-0',
             error
-              ? 'border-[var(--color-danger)] focus:ring-[var(--color-danger)]/30'
-              : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)] focus:border-[var(--color-primary)] focus:ring-[var(--color-primary)]/20',
-            isLarge ? 'h-14 pl-12 pr-12 text-[var(--text-lg)]' : 'h-10 pl-10 pr-10 text-[var(--text-base)]',
+              ? 'border-danger focus:ring-danger/30'
+              : 'border-border hover:border-border-strong focus:border-primary focus:ring-primary/20',
+            isLarge ? 'h-14 pl-12 pr-12 text-lg' : 'h-10 pl-10 pr-10 text-base',
           ].join(' ')}
         />
 
         {isLoading && (
           <span
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)]"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-tertiary"
             aria-hidden="true"
           >
             <Loader2 size={isLarge ? 20 : 16} className="animate-spin" />
@@ -224,7 +219,7 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
       </div>
 
       {error && (
-        <p className="mt-1.5 text-[var(--text-xs)] text-[var(--color-danger)]" role="alert">
+        <p className="mt-1.5 text-xs text-danger" role="alert">
           {error}
         </p>
       )}
@@ -234,8 +229,7 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
           ref={listRef}
           id="address-suggestions"
           role="listbox"
-          className="absolute z-40 w-full mt-1 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-md)] overflow-hidden"
-          style={{ boxShadow: 'var(--shadow-lg)' }}
+          className="absolute z-40 w-full mt-1 py-1 bg-surface border border-border rounded-md overflow-hidden shadow-lg"
         >
           {suggestions.map((suggestion, index) => {
             const isActive = index === activeIndex;
@@ -252,22 +246,20 @@ export default function AddressInput({ autoFocus = false, size = 'default' }: Ad
                 }}
                 className={[
                   'flex items-center gap-3 px-3.5 cursor-pointer',
-                  'transition-colors duration-[var(--transition-fast)]',
+                  'transition-colors duration-fast',
                   isLarge ? 'py-3' : 'py-2.5',
                   isActive
-                    ? 'bg-[var(--color-primary-light)]'
-                    : 'hover:bg-[var(--color-bg)]',
+                    ? 'bg-primary-light'
+                    : 'hover:bg-bg',
                 ].join(' ')}
               >
                 <MapPin
                   size={16}
-                  className="shrink-0"
-                  style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-text-tertiary)' }}
+                  className={`shrink-0 ${isActive ? 'text-primary' : 'text-text-tertiary'}`}
                   aria-hidden="true"
                 />
                 <span
-                  className="text-[var(--text-sm)] truncate"
-                  style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-text-primary)' }}
+                  className={`text-sm truncate ${isActive ? 'text-primary' : 'text-text-primary'}`}
                 >
                   {suggestion.formatted}
                 </span>

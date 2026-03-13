@@ -13,8 +13,8 @@ interface BadgeProps {
 }
 
 const sizeStyles: Record<BadgeSize, string> = {
-  sm: 'h-5 px-1.5 text-[var(--text-xs)]',
-  md: 'h-6 px-2.5 text-[var(--text-sm)]',
+  sm: 'h-5 px-1.5 text-xs',
+  md: 'h-6 px-2.5 text-sm',
 };
 
 export default function Badge({

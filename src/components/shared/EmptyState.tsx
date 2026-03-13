@@ -23,19 +23,16 @@ export default function EmptyState({
     <div
       className={`flex flex-col items-center justify-center py-12 px-6 text-center ${className}`}
     >
-      <div
-        className="mb-4 text-[var(--color-text-tertiary)]"
-        aria-hidden="true"
-      >
+      <div className="mb-4 text-text-tertiary" aria-hidden="true">
         {icon || <SearchX size={40} strokeWidth={1.5} />}
       </div>
 
-      <p className="text-[var(--text-base)] font-medium text-[var(--color-text-primary)] mb-1">
+      <p className="text-base font-medium text-text-primary mb-1">
         {title}
       </p>
 
       {description && (
-        <p className="text-[var(--text-sm)] text-[var(--color-text-secondary)] max-w-xs">
+        <p className="text-sm text-text-secondary max-w-xs">
           {description}
         </p>
       )}

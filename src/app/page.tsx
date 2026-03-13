@@ -12,12 +12,12 @@ export default function HomePage() {
         {/* Hero */}
         <section className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-16 sm:py-24">
           <div className="w-full max-w-xl text-center">
-            <h1 className="text-[var(--text-3xl)] sm:text-[2.4rem] font-semibold text-[var(--color-text-primary)] leading-tight tracking-tight">
+            <h1 className="text-3xl sm:text-[2.4rem] font-semibold text-text-primary leading-tight tracking-tight">
               Porównaj ceny dostaw jedzenia{' '}
-              <span className="text-[var(--color-primary)]">w Twojej okolicy</span>
+              <span className="text-primary">w Twojej okolicy</span>
             </h1>
 
-            <p className="mt-4 text-[var(--text-lg)] text-[var(--color-text-secondary)] leading-relaxed">
+            <p className="mt-4 text-lg text-text-secondary leading-relaxed">
               Sprawdzamy Pyszne.pl, Uber Eats, Wolt i Glovo — żebyś płacił mniej.
             </p>
 
@@ -25,9 +25,9 @@ export default function HomePage() {
               <AddressInput autoFocus size="large" />
             </div>
 
-            <p className="mt-4 text-[var(--text-sm)] text-[var(--color-text-tertiary)]">
+            <p className="mt-4 text-sm text-text-tertiary">
               Obsługujemy:{' '}
-              <span className="font-medium text-[var(--color-text-secondary)]">Warszawa</span>
+              <span className="font-medium text-text-secondary">Warszawa</span>
               <span className="mx-1.5">&middot;</span>
               Kraków, Wrocław — wkrótce
             </p>
@@ -35,9 +35,9 @@ export default function HomePage() {
         </section>
 
         {/* How it works */}
-        <section className="border-t border-[var(--color-border)] bg-[var(--color-surface)] px-4 sm:px-6 py-16">
+        <section className="border-t border-border bg-surface px-4 sm:px-6 py-16">
           <div className="mx-auto max-w-3xl">
-            <h2 className="text-center text-[var(--text-xl)] font-semibold text-[var(--color-text-primary)] mb-10">
+            <h2 className="text-center text-xl font-semibold text-text-primary mb-10">
               Jak to działa?
             </h2>
 
@@ -84,19 +84,18 @@ function Step({
   return (
     <div className="flex flex-col items-center text-center">
       <div
-        className="w-12 h-12 rounded-full flex items-center justify-center mb-4 text-[var(--color-primary)]"
-        style={{ backgroundColor: 'var(--color-primary-light)' }}
+        className="w-12 h-12 rounded-full bg-primary-light text-primary flex items-center justify-center mb-4"
         aria-hidden="true"
       >
         {icon}
       </div>
-      <div className="text-[var(--text-xs)] font-medium tracking-[0.05em] uppercase text-[var(--color-text-tertiary)] mb-1.5">
+      <div className="text-xs font-medium tracking-[0.05em] uppercase text-text-tertiary mb-1.5">
         Krok {number}
       </div>
-      <h3 className="text-[var(--text-base)] font-semibold text-[var(--color-text-primary)] mb-2">
+      <h3 className="text-base font-semibold text-text-primary mb-2">
         {title}
       </h3>
-      <p className="text-[var(--text-sm)] text-[var(--color-text-secondary)] leading-relaxed max-w-[260px]">
+      <p className="text-sm text-text-secondary leading-relaxed max-w-[260px]">
         {description}
       </p>
     </div>

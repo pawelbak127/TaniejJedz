@@ -29,9 +29,7 @@ export default function RestaurantFilters({
 }: RestaurantFiltersProps) {
   return (
     <div className="flex flex-col gap-3">
-      {/* Cuisine pills + sort row */}
       <div className="flex items-center gap-3">
-        {/* Cuisine pills — scrollable */}
         <div className="flex-1 overflow-x-auto scrollbar-hide">
           <div className="flex items-center gap-2 pb-0.5">
             <CuisinePill
@@ -39,7 +37,6 @@ export default function RestaurantFilters({
               isActive={activeCuisines.length === 0}
               onClick={() => {
                 if (activeCuisines.length > 0) {
-                  // Clear all — parent handles
                   activeCuisines.forEach((c) => onCuisineToggle(c));
                 }
               }}
@@ -55,7 +52,6 @@ export default function RestaurantFilters({
           </div>
         </div>
 
-        {/* Sort dropdown */}
         <div className="shrink-0 relative">
           <label htmlFor="sort-select" className="sr-only">
             Sortuj
@@ -66,18 +62,7 @@ export default function RestaurantFilters({
             onChange={(e) =>
               onSortChange(e.target.value as 'relevance' | 'cheapest_delivery' | 'rating')
             }
-            className={[
-              'appearance-none',
-              'h-8 pl-3 pr-8',
-              'text-[var(--text-sm)] font-medium',
-              'bg-[var(--color-surface)]',
-              'border border-[var(--color-border)] rounded-[var(--radius-sm)]',
-              'text-[var(--color-text-secondary)]',
-              'hover:border-[var(--color-border-strong)]',
-              'focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)]',
-              'cursor-pointer',
-              'transition-colors duration-[var(--transition-fast)]',
-            ].join(' ')}
+            className="appearance-none h-8 pl-3 pr-8 text-sm font-medium bg-surface border border-border rounded-sm text-text-secondary hover:border-border-strong focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary cursor-pointer transition-colors duration-fast"
           >
             {Object.entries(SORT_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -87,21 +72,20 @@ export default function RestaurantFilters({
           </select>
           <ChevronDown
             size={14}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--color-text-tertiary)]"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-tertiary"
             aria-hidden="true"
           />
         </div>
       </div>
 
-      {/* "Open only" checkbox */}
       <label className="inline-flex items-center gap-2 cursor-pointer self-start">
         <input
           type="checkbox"
           checked={!showClosed}
           onChange={(e) => onShowClosedChange(!e.target.checked)}
-          className="w-4 h-4 rounded-[3px] border-[var(--color-border-strong)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]/30 focus:ring-2 cursor-pointer accent-[var(--color-primary)]"
+          className="w-4 h-4 rounded-[3px] border-border-strong text-primary focus:ring-primary/30 focus:ring-2 cursor-pointer accent-primary"
         />
-        <span className="text-[var(--text-sm)] text-[var(--color-text-secondary)] select-none">
+        <span className="text-sm text-text-secondary select-none">
           Tylko otwarte
         </span>
       </label>
@@ -123,13 +107,13 @@ function CuisinePill({
       onClick={onClick}
       className={[
         'shrink-0 h-8 px-3.5',
-        'rounded-[var(--radius-full)]',
-        'text-[var(--text-sm)] font-medium whitespace-nowrap',
-        'transition-colors duration-[var(--transition-fast)]',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]',
+        'rounded-full',
+        'text-sm font-medium whitespace-nowrap',
+        'transition-colors duration-fast',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
         isActive
-          ? 'bg-[var(--color-primary)] text-[var(--color-text-inverse)]'
-          : 'bg-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-strong)]',
+          ? 'bg-primary text-text-inverse'
+          : 'bg-border text-text-secondary hover:bg-border-strong',
       ].join(' ')}
     >
       {label}

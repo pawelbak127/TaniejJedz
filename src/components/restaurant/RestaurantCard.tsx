@@ -31,20 +31,19 @@ export default function RestaurantCard({ restaurant, city }: RestaurantCardProps
       href={`/${city}/${slug}`}
       className={[
         'group flex gap-3 p-4',
-        'bg-[var(--color-surface)] border border-[var(--color-border)]',
-        'rounded-[var(--radius-md)]',
-        'transition-all duration-[var(--transition-fast)]',
-        'hover:border-[var(--color-border-strong)] hover:shadow-[var(--shadow-sm)]',
+        'bg-surface border border-border',
+        'rounded-md',
+        'transition-all duration-fast',
+        'hover:border-border-strong hover:shadow-sm',
         isClosed ? 'opacity-60' : '',
       ].join(' ')}
     >
       {/* Image placeholder */}
       <div
-        className="shrink-0 w-[80px] h-[80px] lg:w-[100px] lg:h-[80px] rounded-[var(--radius-sm)] flex items-center justify-center"
-        style={{ backgroundColor: 'var(--color-border)' }}
+        className="shrink-0 w-[80px] h-[80px] lg:w-[100px] lg:h-[80px] rounded-sm bg-border flex items-center justify-center"
         aria-hidden="true"
       >
-        <span className="text-[var(--text-lg)] font-semibold text-[var(--color-text-tertiary)]">
+        <span className="text-lg font-semibold text-text-tertiary">
           {initial}
         </span>
       </div>
@@ -53,10 +52,10 @@ export default function RestaurantCard({ restaurant, city }: RestaurantCardProps
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="text-[var(--text-base)] font-semibold text-[var(--color-text-primary)] truncate group-hover:text-[var(--color-primary)] transition-colors duration-[var(--transition-fast)]">
+            <h3 className="text-base font-semibold text-text-primary truncate group-hover:text-primary transition-colors duration-fast">
               {restaurant.name}
             </h3>
-            <p className="text-[var(--text-sm)] text-[var(--color-text-secondary)] truncate">
+            <p className="text-sm text-text-secondary truncate">
               {restaurant.address}
               <span className="mx-1.5">&middot;</span>
               {restaurant.cuisine_tags.join(', ')}
@@ -64,7 +63,7 @@ export default function RestaurantCard({ restaurant, city }: RestaurantCardProps
           </div>
 
           {isClosed && (
-            <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-[var(--radius-full)] bg-[var(--color-border)] text-[var(--text-xs)] font-medium text-[var(--color-text-secondary)] uppercase tracking-[0.03em]">
+            <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-border text-xs font-medium text-text-secondary uppercase tracking-[0.03em]">
               <Clock size={11} aria-hidden="true" />
               Zamknięte
             </span>
@@ -74,20 +73,20 @@ export default function RestaurantCard({ restaurant, city }: RestaurantCardProps
         <PlatformBadges platforms={restaurant.platforms} />
 
         {!isClosed && openPlatformCount >= 2 && restaurant.cheapest_delivery_fee_grosz !== null && restaurant.cheapest_open_platform && (
-          <p className="text-[var(--text-sm)] text-[var(--color-text-secondary)]">
+          <p className="text-sm text-text-secondary">
             Najtańsza dostawa:{' '}
-            <span className="font-medium text-[var(--color-text-primary)] tabular-nums">
+            <span className="font-medium text-text-primary tabular-nums">
               {formatPrice(restaurant.cheapest_delivery_fee_grosz)}
             </span>
             {' '}
-            <span className="text-[var(--color-text-tertiary)]">
+            <span className="text-text-tertiary">
               ({getPlatformName(restaurant.cheapest_open_platform)})
             </span>
           </p>
         )}
 
         {isClosed && nextOpenTime && (
-          <p className="text-[var(--text-sm)] text-[var(--color-text-tertiary)]">
+          <p className="text-sm text-text-tertiary">
             Otwiera: {nextOpenTime}
           </p>
         )}

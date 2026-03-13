@@ -16,42 +16,42 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary: [
-    'bg-[var(--color-primary)] text-[var(--color-text-inverse)]',
-    'hover:bg-[var(--color-primary-hover)]',
-    'active:bg-[var(--color-primary-hover)]',
-    'disabled:bg-[var(--color-border)] disabled:text-[var(--color-text-tertiary)]',
+    'bg-primary text-text-inverse',
+    'hover:bg-primary-hover',
+    'active:bg-primary-hover',
+    'disabled:bg-border disabled:text-text-tertiary',
   ].join(' '),
   secondary: [
-    'bg-[var(--color-primary-light)] text-[var(--color-primary)]',
+    'bg-primary-light text-primary',
     'hover:bg-[#d6e6fb]',
     'active:bg-[#c5dbf9]',
-    'disabled:bg-[var(--color-border)] disabled:text-[var(--color-text-tertiary)]',
+    'disabled:bg-border disabled:text-text-tertiary',
   ].join(' '),
   outline: [
-    'bg-transparent text-[var(--color-text-primary)]',
-    'border border-[var(--color-border-strong)]',
-    'hover:bg-[var(--color-bg)] hover:border-[var(--color-text-tertiary)]',
-    'active:bg-[var(--color-border)]',
-    'disabled:text-[var(--color-text-tertiary)] disabled:border-[var(--color-border)]',
+    'bg-transparent text-text-primary',
+    'border border-border-strong',
+    'hover:bg-bg hover:border-text-tertiary',
+    'active:bg-border',
+    'disabled:text-text-tertiary disabled:border-border',
   ].join(' '),
   ghost: [
-    'bg-transparent text-[var(--color-text-secondary)]',
-    'hover:bg-[var(--color-bg)] hover:text-[var(--color-text-primary)]',
-    'active:bg-[var(--color-border)]',
-    'disabled:text-[var(--color-text-tertiary)]',
+    'bg-transparent text-text-secondary',
+    'hover:bg-bg hover:text-text-primary',
+    'active:bg-border',
+    'disabled:text-text-tertiary',
   ].join(' '),
   danger: [
-    'bg-[var(--color-danger)] text-[var(--color-text-inverse)]',
+    'bg-danger text-text-inverse',
     'hover:bg-[#dc2626]',
     'active:bg-[#b91c1c]',
-    'disabled:bg-[var(--color-border)] disabled:text-[var(--color-text-tertiary)]',
+    'disabled:bg-border disabled:text-text-tertiary',
   ].join(' '),
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-[var(--text-sm)] gap-1.5',
-  md: 'h-10 px-4 text-[var(--text-base)] gap-2',
-  lg: 'h-12 px-6 text-[var(--text-base)] gap-2.5',
+  sm: 'h-8 px-3 text-sm gap-1.5',
+  md: 'h-10 px-4 text-base gap-2',
+  lg: 'h-12 px-6 text-base gap-2.5',
 };
 
 const iconSizeMap: Record<ButtonSize, number> = {
@@ -84,9 +84,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={[
           'inline-flex items-center justify-center',
           'font-medium select-none',
-          'rounded-[var(--radius-sm)]',
-          'transition-colors duration-[var(--transition-fast)]',
-          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]',
+          'rounded-sm',
+          'transition-colors duration-fast',
+          'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
           'disabled:cursor-not-allowed',
           variantStyles[variant],
           sizeStyles[size],

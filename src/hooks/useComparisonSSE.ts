@@ -21,13 +21,21 @@ export function useComparisonSSE(comparisonId: string | null) {
     eventSourceRef.current = es;
 
     es.addEventListener('platform_status', (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setPlatformResult(data.platform, data.status, data.data);
+      try {
+        const data = JSON.parse(e.data);
+        setPlatformResult(data.platform, data.status, data.data);
+      } catch (err) {
+        console.warn('[SSE] Failed to parse platform_status event:', err);
+      }
     });
 
     es.addEventListener('comparison_ready', (e: MessageEvent) => {
-      const data = JSON.parse(e.data);
-      setComparisonResult(data.cheapest_open, data.savings_grosz, data.savings_display);
+      try {
+        const data = JSON.parse(e.data);
+        setComparisonResult(data.cheapest_open, data.savings_grosz, data.savings_display);
+      } catch (err) {
+        console.warn('[SSE] Failed to parse comparison_ready event:', err);
+      }
       es.close();
     });
 

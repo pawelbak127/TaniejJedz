@@ -25,21 +25,17 @@ export default function PlatformBadges({
         return (
           <span
             key={key}
-            className="inline-flex items-center gap-1.5 text-[var(--text-xs)] font-medium"
-            style={{
-              color: isAvailable
-                ? isOpen
-                  ? 'var(--color-text-secondary)'
-                  : 'var(--color-text-tertiary)'
-                : 'var(--color-text-tertiary)',
-            }}
+            className={[
+              'inline-flex items-center gap-1.5 text-xs font-medium',
+              isAvailable && isOpen ? 'text-text-secondary' : 'text-text-tertiary',
+            ].join(' ')}
           >
             <span
               className={`${dotSize} rounded-full shrink-0`}
               style={
                 isAvailable
                   ? { backgroundColor: meta.color }
-                  : { border: `1.5px solid var(--color-border-strong)` }
+                  : { border: '1.5px solid var(--color-border-strong)' }
               }
               aria-hidden="true"
             />
@@ -47,7 +43,7 @@ export default function PlatformBadges({
               {meta.shortName}
             </span>
             {showRating && info?.rating && isAvailable && (
-              <span className="text-[var(--color-text-tertiary)]">
+              <span className="text-text-tertiary">
                 ({info.rating.toFixed(1)})
               </span>
             )}

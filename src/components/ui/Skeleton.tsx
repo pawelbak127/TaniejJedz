@@ -5,26 +5,24 @@ interface SkeletonProps {
   className?: string;
 }
 
-const roundedMap: Record<string, string> = {
-  sm: 'var(--radius-sm)',
-  md: 'var(--radius-md)',
-  lg: 'var(--radius-lg)',
-  full: 'var(--radius-full)',
-};
-
 export default function Skeleton({
   width,
   height,
   rounded = 'sm',
   className = '',
 }: SkeletonProps) {
+  const roundedClass =
+    rounded === 'sm' ? 'rounded-sm' :
+    rounded === 'md' ? 'rounded-md' :
+    rounded === 'lg' ? 'rounded-lg' :
+    'rounded-full';
+
   return (
     <div
-      className={`skeleton ${className}`}
+      className={`skeleton ${roundedClass} ${className}`}
       style={{
         width: typeof width === 'number' ? `${width}px` : width,
         height: typeof height === 'number' ? `${height}px` : height,
-        borderRadius: roundedMap[rounded],
       }}
       aria-hidden="true"
     />
@@ -43,11 +41,10 @@ export function SkeletonText({
       {Array.from({ length: lines }).map((_, i) => (
         <div
           key={i}
-          className="skeleton"
+          className="skeleton rounded-sm"
           style={{
             height: '14px',
             width: i === lines - 1 ? '60%' : '100%',
-            borderRadius: 'var(--radius-sm)',
           }}
         />
       ))}
@@ -58,7 +55,7 @@ export function SkeletonText({
 export function SkeletonCard({ className = '' }: { className?: string }) {
   return (
     <div
-      className={`flex gap-3 p-4 border border-[var(--color-border)] rounded-[var(--radius-md)] ${className}`}
+      className={`flex gap-3 p-4 border border-border rounded-md ${className}`}
       aria-hidden="true"
     >
       <Skeleton width={80} height={80} rounded="sm" />

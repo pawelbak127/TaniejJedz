@@ -123,22 +123,21 @@ export default function Modal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="relative z-10 w-full bg-[var(--color-surface)] rounded-[var(--radius-lg)] border border-[var(--color-border)] animate-modal-in"
+        className="relative z-10 w-full bg-surface rounded-lg border border-border shadow-xl animate-modal-in"
         style={{
           maxWidth,
-          boxShadow: 'var(--shadow-xl)',
           maxHeight: 'calc(100vh - 2rem)',
           display: 'flex',
           flexDirection: 'column',
         }}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
-          <h2 className="text-[var(--text-lg)] font-semibold text-[var(--color-text-primary)]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-text-primary">
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-[var(--radius-sm)] text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)] transition-colors duration-[var(--transition-fast)]"
+            className="p-1.5 rounded-sm text-text-tertiary hover:text-text-secondary hover:bg-bg transition-colors duration-fast"
             aria-label="Zamknij"
           >
             <X size={18} />
