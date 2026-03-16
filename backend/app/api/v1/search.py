@@ -1,17 +1,14 @@
 """POST /api/v1/search — address-based restaurant search."""
 
-import uuid as _uuid
-
-from fastapi import APIRouter, Depends
-from sqlalchemy import func, select, and_
+from fastapi import APIRouter
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import DbSession
 from app.models.city import City
-from app.models.restaurant import CanonicalRestaurant, PlatformRestaurant, OperatingHours
+from app.models.restaurant import CanonicalRestaurant, PlatformRestaurant
 from app.models.delivery import DeliveryFee
 from app.schemas.search import (
-    DataFreshnessInfo,
     PlatformAvailability,
     RestaurantSummary,
     SearchRequest,
@@ -26,52 +23,53 @@ async def search_restaurants(body: SearchRequest, db: DbSession) -> SearchRespon
     """Search restaurants by address/coordinates with filters and pagination."""
 
     # ── Find city ───────────────────────────────────────────
-    city_stmt = select(City).where(City.is_active.is_(True)).limit(1)
-    city_result = await db.execute(city_stmt)
+    city_result = await db.execute(
+        select(City).where(City.is_active == True).limit(1)  # noqa: E712
+    )
     city = city_result.scalar_one_or_none()
     city_name = city.name if city else "Warszawa"
     city_id = city.id if city else None
 
-    # ── Base query: active restaurants in city ──────────────
+    # ── Build WHERE conditions ──────────────────────────────
+    conditions = [CanonicalRestaurant.is_active == True]  # noqa: E712
+
+    if city_id is not None:
+        conditions.append(CanonicalRestaurant.city_id == city_id)
+
+    if body.cuisine_filter:
+        conditions.append(
+            CanonicalRestaurant.cuisine_tags.overlap(body.cuisine_filter)
+        )
+
+    # ── Count total ─────────────────────────────────────────
+    count_result = await db.execute(
+        select(func.count(CanonicalRestaurant.id)).where(*conditions)
+    )
+    total = count_result.scalar() or 0
+
+    # ── Sorting ─────────────────────────────────────────────
+    if body.sort_by == "rating":
+        order = CanonicalRestaurant.data_quality_score.desc()
+    elif body.sort_by == "cheapest_delivery":
+        order = CanonicalRestaurant.name.asc()
+    else:
+        order = CanonicalRestaurant.data_quality_score.desc()
+
+    # ── Main query with eager loading ───────────────────────
+    offset = (body.page - 1) * body.per_page
     stmt = (
         select(CanonicalRestaurant)
-        .where(
-            CanonicalRestaurant.is_active.is_(True),
-        )
+        .where(*conditions)
         .options(
             selectinload(CanonicalRestaurant.platform_restaurants)
             .selectinload(PlatformRestaurant.operating_hours),
             selectinload(CanonicalRestaurant.platform_restaurants)
             .selectinload(PlatformRestaurant.delivery_fees),
         )
+        .order_by(order)
+        .offset(offset)
+        .limit(body.per_page)
     )
-
-    if city_id:
-        stmt = stmt.where(CanonicalRestaurant.city_id == city_id)
-
-    # ── Cuisine filter ──────────────────────────────────────
-    if body.cuisine_filter:
-        stmt = stmt.where(
-            CanonicalRestaurant.cuisine_tags.overlap(body.cuisine_filter)
-        )
-
-    # ── Count total before pagination ───────────────────────
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total_result = await db.execute(count_stmt)
-    total = total_result.scalar() or 0
-
-    # ── Sorting ─────────────────────────────────────────────
-    if body.sort_by == "rating":
-        stmt = stmt.order_by(CanonicalRestaurant.data_quality_score.desc())
-    elif body.sort_by == "cheapest_delivery":
-        stmt = stmt.order_by(CanonicalRestaurant.name.asc())
-    else:
-        stmt = stmt.order_by(CanonicalRestaurant.data_quality_score.desc())
-
-    # ── Pagination ──────────────────────────────────────────
-    offset = (body.page - 1) * body.per_page
-    stmt = stmt.offset(offset).limit(body.per_page)
-
     result = await db.execute(stmt)
     restaurants = result.scalars().unique().all()
 
