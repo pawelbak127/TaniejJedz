@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
-import { useComparisonStore } from '@/stores/comparison';
+import { useAddressStore } from '@/stores/address';
 import type { Address } from '@/generated/api-types';
 
 const STORAGE_KEY = 'taniejjedz_address';
@@ -31,9 +31,9 @@ function writeToStorage(address: Address | null): void {
 }
 
 export function useAddress() {
-  const address = useComparisonStore((s) => s.address);
-  const setAddress = useComparisonStore((s) => s.setAddress);
-  const clearAddress = useComparisonStore((s) => s.clearAddress);
+  const address = useAddressStore((s) => s.address);
+  const setAddress = useAddressStore((s) => s.setAddress);
+  const clearAddress = useAddressStore((s) => s.clearAddress);
 
   // Hydrate from sessionStorage on mount
   useEffect(() => {

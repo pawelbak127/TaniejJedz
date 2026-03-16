@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import Header from '@/components/shared/Header';
 import Footer from '@/components/shared/Footer';
@@ -9,7 +10,7 @@ import RestaurantFilters from '@/components/restaurant/RestaurantFilters';
 import RestaurantListSkeleton from '@/components/restaurant/RestaurantListSkeleton';
 import { EmptyState } from '@/components/shared';
 import { Button } from '@/components/ui';
-import { apiClient, ApiClientError } from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client';
 import { useAddress } from '@/hooks/useAddress';
 import { pluralizeRestaurants } from '@/lib/format';
 import { SUPPORTED_CITIES_DISPLAY, SEARCH_DEFAULTS } from '@/lib/constants';
@@ -31,83 +32,75 @@ export default function RestaurantListClient({
   const cityDisplay = SUPPORTED_CITIES_DISPLAY[city] || city;
   const { address } = useAddress();
 
-  // Data state — seeded from server
-  const [restaurants, setRestaurants] = useState<RestaurantSummary[]>(initialRestaurants);
-  const [total, setTotal] = useState(initialTotal);
-  const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(
-    fetchError ? 'Nie udało się załadować restauracji. Spróbuj ponownie.' : null,
-  );
-
   // Filter state
   const [activeCuisines, setActiveCuisines] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'relevance' | 'cheapest_delivery' | 'rating'>(
     SEARCH_DEFAULTS.sort_by,
   );
   const [showClosed, setShowClosed] = useState(SEARCH_DEFAULTS.show_closed);
+  const [page, setPage] = useState(1);
 
-  // Track whether filters changed from defaults (skip refetch on mount)
+  // Track whether we should use SSR data or fetch fresh
   const [filtersChanged, setFiltersChanged] = useState(false);
+
+  const queryKey = ['restaurants', city, activeCuisines, sortBy, showClosed, page, address?.formatted];
+
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey,
+    queryFn: () =>
+      apiClient.search({
+        address: address?.formatted || cityDisplay,
+        latitude: address?.latitude || 52.2297,
+        longitude: address?.longitude || 21.0122,
+        cuisine_filter: activeCuisines.length > 0 ? activeCuisines : undefined,
+        sort_by: sortBy,
+        show_closed: showClosed,
+        page,
+        per_page: SEARCH_DEFAULTS.per_page,
+      }),
+    // Use SSR data on first load, fetch on filter change
+    enabled: filtersChanged || fetchError,
+    initialData: !filtersChanged && !fetchError
+      ? {
+          restaurants: initialRestaurants,
+          total: initialTotal,
+          page: 1,
+          per_page: SEARCH_DEFAULTS.per_page,
+          city,
+          data_freshness: {} as Record<string, { checked_at: string; is_live: boolean }>,
+        }
+      : undefined,
+    staleTime: 30_000,
+  });
+
+  const restaurants = data?.restaurants ?? [];
+  const total = data?.total ?? 0;
+
+  // Accumulate pages for "load more"
+  const [extraPages, setExtraPages] = useState<RestaurantSummary[]>([]);
+
+  const allRestaurants = useMemo(() => {
+    if (page === 1) return restaurants;
+    return [...restaurants, ...extraPages];
+  }, [restaurants, extraPages, page]);
 
   const allCuisines = useMemo(() => {
     const set = new Set<string>();
-    restaurants.forEach((r) => r.cuisine_tags.forEach((t) => set.add(t)));
+    allRestaurants.forEach((r) => r.cuisine_tags.forEach((t) => set.add(t)));
     return Array.from(set).sort();
-  }, [restaurants]);
-
-  const fetchRestaurants = useCallback(
-    async (pageNum: number, append: boolean) => {
-      if (append) {
-        setIsLoadingMore(true);
-      } else {
-        setIsLoading(true);
-        setError(null);
-      }
-
-      try {
-        const response = await apiClient.search({
-          address: address?.formatted || cityDisplay,
-          latitude: address?.latitude || 52.2297,
-          longitude: address?.longitude || 21.0122,
-          cuisine_filter: activeCuisines.length > 0 ? activeCuisines : undefined,
-          sort_by: sortBy,
-          show_closed: showClosed,
-          page: pageNum,
-          per_page: SEARCH_DEFAULTS.per_page,
-        });
-
-        if (append) {
-          setRestaurants((prev) => [...prev, ...response.restaurants]);
-        } else {
-          setRestaurants(response.restaurants);
-        }
-        setTotal(response.total);
-        setPage(pageNum);
-      } catch (err) {
-        if (err instanceof ApiClientError) {
-          setError(err.message);
-        } else {
-          setError('Nie udało się załadować restauracji. Spróbuj ponownie.');
-        }
-      } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
-      }
-    },
-    [address, activeCuisines, sortBy, showClosed, cityDisplay],
-  );
-
-  // Refetch only when filters change (not on initial mount — we have SSR data)
-  useEffect(() => {
-    if (filtersChanged) {
-      fetchRestaurants(1, false);
-    }
-  }, [filtersChanged, fetchRestaurants]);
+  }, [allRestaurants]);
 
   const handleCuisineToggle = (cuisine: string) => {
     setFiltersChanged(true);
+    setPage(1);
+    setExtraPages([]);
     setActiveCuisines((prev) =>
       prev.includes(cuisine) ? prev.filter((c) => c !== cuisine) : [...prev, cuisine],
     );
@@ -115,24 +108,51 @@ export default function RestaurantListClient({
 
   const handleSortChange = (sort: 'relevance' | 'cheapest_delivery' | 'rating') => {
     setFiltersChanged(true);
+    setPage(1);
+    setExtraPages([]);
     setSortBy(sort);
   };
 
   const handleShowClosedChange = (show: boolean) => {
     setFiltersChanged(true);
+    setPage(1);
+    setExtraPages([]);
     setShowClosed(show);
   };
 
-  const handleLoadMore = () => {
-    fetchRestaurants(page + 1, true);
-  };
+  const {
+    isFetching: isLoadingMore,
+    refetch: refetchMore,
+  } = useQuery({
+    queryKey: ['restaurants-more', city, activeCuisines, sortBy, showClosed, page],
+    queryFn: async () => {
+      const res = await apiClient.search({
+        address: address?.formatted || cityDisplay,
+        latitude: address?.latitude || 52.2297,
+        longitude: address?.longitude || 21.0122,
+        cuisine_filter: activeCuisines.length > 0 ? activeCuisines : undefined,
+        sort_by: sortBy,
+        show_closed: showClosed,
+        page,
+        per_page: SEARCH_DEFAULTS.per_page,
+      });
+      setExtraPages((prev) => [...prev, ...res.restaurants]);
+      return res;
+    },
+    enabled: false, // manual trigger only
+  });
 
-  const handleRetry = () => {
-    setFiltersChanged(true);
-    fetchRestaurants(1, false);
-  };
+  const handleLoadMore = useCallback(() => {
+    setPage((p) => p + 1);
+    setTimeout(() => refetchMore(), 0);
+  }, [refetchMore]);
 
-  const hasMore = restaurants.length < total;
+  const hasMore = allRestaurants.length < total;
+  const showLoading = isLoading && filtersChanged;
+  const showError = (isError || fetchError) && !isFetching;
+  const errorMessage = error instanceof Error
+    ? error.message
+    : 'Nie udało się załadować restauracji. Spróbuj ponownie.';
 
   return (
     <div className="min-h-screen flex flex-col bg-bg">
@@ -145,7 +165,7 @@ export default function RestaurantListClient({
             <h1 className="text-xl font-semibold text-text-primary">
               Restauracje w {cityDisplay}
             </h1>
-            {!isLoading && !error && (
+            {!showLoading && !showError && (
               <span className="text-sm text-text-tertiary tabular-nums">
                 {pluralizeRestaurants(total)}
               </span>
@@ -166,17 +186,18 @@ export default function RestaurantListClient({
           </div>
 
           {/* Error state */}
-          {error && (
+          {showError && (
             <div className="mb-6 flex items-center gap-3 p-4 rounded-md border border-danger/20 bg-danger/5">
               <AlertCircle size={18} className="shrink-0 text-danger" aria-hidden="true" />
-              <p className="flex-1 text-sm text-text-primary">
-                {error}
-              </p>
+              <p className="flex-1 text-sm text-text-primary">{errorMessage}</p>
               <Button
                 variant="outline"
                 size="sm"
                 icon={<RefreshCw size={14} />}
-                onClick={handleRetry}
+                onClick={() => {
+                  setFiltersChanged(true);
+                  refetch();
+                }}
               >
                 Ponów
               </Button>
@@ -184,10 +205,10 @@ export default function RestaurantListClient({
           )}
 
           {/* Loading skeleton */}
-          {isLoading && <RestaurantListSkeleton />}
+          {showLoading && <RestaurantListSkeleton />}
 
           {/* Empty state */}
-          {!isLoading && !error && restaurants.length === 0 && (
+          {!showLoading && !showError && allRestaurants.length === 0 && (
             <EmptyState
               title="Nie znaleźliśmy restauracji w tej okolicy"
               description="Spróbuj inny adres lub zmień filtry."
@@ -202,15 +223,15 @@ export default function RestaurantListClient({
           )}
 
           {/* Restaurant list */}
-          {!isLoading && restaurants.length > 0 && (
+          {!showLoading && allRestaurants.length > 0 && (
             <>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {restaurants.map((restaurant, index) => (
+                {allRestaurants.map((restaurant, index) => (
                   <div
                     key={restaurant.id}
-                    className="animate-fade-in-item"
+                    className="animate-fade-in-up"
                     style={{
-                      animationDelay: page === 1 && !filtersChanged ? `${index * 50}ms` : '0ms',
+                      animationDelay: !filtersChanged ? `${index * 50}ms` : '0ms',
                     }}
                   >
                     <RestaurantCard restaurant={restaurant} city={city} />
@@ -237,24 +258,6 @@ export default function RestaurantListClient({
       </main>
 
       <Footer />
-
-      <style jsx>{`
-        @keyframes fade-in-item {
-          from {
-            opacity: 0;
-            transform: translateY(6px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @media (prefers-reduced-motion: no-preference) {
-          .animate-fade-in-item {
-            animation: fade-in-item 300ms ease-out both;
-          }
-        }
-      `}</style>
     </div>
   );
 }

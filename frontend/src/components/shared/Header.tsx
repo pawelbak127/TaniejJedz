@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { MapPin } from 'lucide-react';
 import { useAddress } from '@/hooks/useAddress';
 
@@ -10,6 +11,12 @@ interface HeaderProps {
 
 export default function Header({ showAddress = false }: HeaderProps) {
   const { address, removeAddress } = useAddress();
+  const router = useRouter();
+
+  const handleChangeAddress = () => {
+    removeAddress();
+    router.push('/');
+  };
 
   return (
     <header className="w-full border-b border-border bg-surface">
@@ -36,7 +43,7 @@ export default function Header({ showAddress = false }: HeaderProps) {
               {address.formatted}
             </span>
             <button
-              onClick={removeAddress}
+              onClick={handleChangeAddress}
               className="text-primary font-medium hover:text-primary-hover transition-colors duration-fast whitespace-nowrap"
             >
               zmień

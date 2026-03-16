@@ -3,7 +3,6 @@
 import { create } from 'zustand';
 import type {
   Platform,
-  Address,
   PlatformComparisonResult,
 } from '@/generated/api-types';
 
@@ -18,9 +17,6 @@ export interface CartItemState {
 }
 
 interface ComparisonState {
-  // === Address ===
-  address: Address | null;
-
   // === Cart ===
   items: Map<string, CartItemState>;
 
@@ -35,10 +31,6 @@ interface ComparisonState {
 }
 
 interface ComparisonActions {
-  // Address
-  setAddress: (address: Address) => void;
-  clearAddress: () => void;
-
   // Cart
   addItem: (item: CartItemState) => void;
   removeItem: (itemId: string) => void;
@@ -62,7 +54,6 @@ type ComparisonStore = ComparisonState & ComparisonActions;
 
 export const useComparisonStore = create<ComparisonStore>((set, get) => ({
   // === State ===
-  address: null,
   items: new Map(),
   comparisonId: null,
   platformStatus: new Map(),
@@ -71,10 +62,6 @@ export const useComparisonStore = create<ComparisonStore>((set, get) => ({
   cheapestPlatform: null,
   savingsGrosze: 0,
   savingsDisplay: '',
-
-  // === Address ===
-  setAddress: (address) => set({ address }),
-  clearAddress: () => set({ address: null }),
 
   // === Cart ===
   addItem: (item) =>

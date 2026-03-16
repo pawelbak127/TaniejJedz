@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useComparisonStore } from '@/stores/comparison';
 import { pluralizeItems, formatPrice } from '@/lib/format';
 import { PLATFORM_ORDER } from '@/lib/platforms';
@@ -30,6 +31,7 @@ export default function ComparisonCartWrapper({ restaurantId }: ComparisonCartWr
 }
 
 function MobileCart({ restaurantId }: { restaurantId: string }) {
+  const [isOpen, setIsOpen] = useState(false);
   const itemCount = useComparisonStore((s) => s.itemCount);
   const estimatedSubtotal = useComparisonStore((s) => s.estimatedSubtotal);
   const comparisonReady = useComparisonStore((s) => s.comparisonReady);
@@ -38,7 +40,6 @@ function MobileCart({ restaurantId }: { restaurantId: string }) {
 
   const count = itemCount();
 
-  // Don't render bottom sheet if cart is empty
   if (count === 0) return null;
 
   // Find cheapest estimated subtotal for peek display
@@ -50,7 +51,6 @@ function MobileCart({ restaurantId }: { restaurantId: string }) {
     }
   }
 
-  // Or use comparison result
   let peekTotal = cheapestEstimate < Infinity ? formatPrice(cheapestEstimate) : '—';
   if (comparisonReady && cheapestPlatform) {
     const result = platformResults.get(cheapestPlatform);
@@ -74,7 +74,11 @@ function MobileCart({ restaurantId }: { restaurantId: string }) {
   );
 
   return (
-    <BottomSheet peekContent={peekContent}>
+    <BottomSheet
+      peekContent={peekContent}
+      open={isOpen}
+      onOpenChange={setIsOpen}
+    >
       <ComparisonCart restaurantId={restaurantId} />
     </BottomSheet>
   );

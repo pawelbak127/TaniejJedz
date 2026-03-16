@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, RefreshCw, Clock } from 'lucide-react';
 import Header from '@/components/shared/Header';
 import Footer from '@/components/shared/Footer';
@@ -11,7 +11,7 @@ import MenuView from '@/components/menu/MenuView';
 import MenuSkeleton from '@/components/menu/MenuSkeleton';
 import FeedbackButton from '@/components/feedback/FeedbackButton';
 import { ComparisonCartWrapper } from '@/components/comparison';
-import { apiClient, ApiClientError } from '@/lib/api-client';
+import { apiClient } from '@/lib/api-client';
 import type { MenuResponse, Platform, PlatformAvailability } from '@/generated/api-types';
 
 interface RestaurantDetailClientProps {
@@ -25,28 +25,25 @@ export default function RestaurantDetailClient({
   restaurantId,
   initialMenu,
 }: RestaurantDetailClientProps) {
-  const [menu, setMenu] = useState<MenuResponse | null>(initialMenu);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(
-    initialMenu === null ? 'Nie udało się załadować menu. Spróbuj ponownie.' : null,
-  );
+  const {
+    data: menu,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['menu', restaurantId],
+    queryFn: () => apiClient.getMenu(restaurantId),
+    initialData: initialMenu ?? undefined,
+    enabled: !initialMenu, // fetch only if SSR failed
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
 
-  const fetchMenu = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await apiClient.getMenu(restaurantId);
-      setMenu(data);
-    } catch (err) {
-      if (err instanceof ApiClientError) {
-        setError(err.message);
-      } else {
-        setError('Nie udało się załadować menu. Spróbuj ponownie.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [restaurantId]);
+  const showError = (isError || (!menu && !isLoading));
+  const errorMessage = error instanceof Error
+    ? error.message
+    : 'Nie udało się załadować menu. Spróbuj ponownie.';
 
   const platformsRecord: Partial<Record<Platform, PlatformAvailability>> = {};
   if (menu) {
@@ -69,7 +66,7 @@ export default function RestaurantDetailClient({
 
       <main className="flex-1">
         <div className="mx-auto max-w-[1280px] px-4 sm:px-6 py-6">
-          {/* Restaurant header */}
+          {/* Restaurant header — visible even during error if we have data */}
           {menu && (
             <div className="mb-6">
               <h1 className="text-2xl font-semibold text-text-primary">
@@ -105,15 +102,15 @@ export default function RestaurantDetailClient({
           )}
 
           {/* Error state */}
-          {error && !isLoading && (
+          {showError && !isLoading && (
             <div className="mb-6 flex items-center gap-3 p-4 rounded-md border border-danger/20 bg-danger/5">
               <AlertCircle size={18} className="shrink-0 text-danger" aria-hidden="true" />
-              <p className="flex-1 text-sm text-text-primary">{error}</p>
+              <p className="flex-1 text-sm text-text-primary">{errorMessage}</p>
               <Button
                 variant="outline"
                 size="sm"
                 icon={<RefreshCw size={14} />}
-                onClick={fetchMenu}
+                onClick={() => refetch()}
               >
                 Ponów
               </Button>
@@ -124,9 +121,8 @@ export default function RestaurantDetailClient({
           {isLoading && <MenuSkeleton />}
 
           {/* Menu + Cart */}
-          {!isLoading && !error && menu && (
+          {!isLoading && !showError && menu && (
             <div className="lg:flex lg:gap-6">
-              {/* Menu — 60% desktop, full mobile */}
               <div className="lg:w-[60%] lg:shrink-0">
                 <MenuView
                   categories={menu.categories}
@@ -134,13 +130,12 @@ export default function RestaurantDetailClient({
                 />
               </div>
 
-              {/* Cart — sidebar desktop, bottom sheet mobile */}
               <ComparisonCartWrapper restaurantId={restaurantId} />
             </div>
           )}
 
           {/* Empty menu */}
-          {!isLoading && !error && menu && menu.categories.length === 0 && (
+          {!isLoading && !showError && menu && menu.categories.length === 0 && (
             <EmptyState
               title="Menu jest puste"
               description="Nie znaleźliśmy pozycji w menu tej restauracji."

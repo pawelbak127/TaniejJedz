@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { ShoppingCart, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ShoppingCart, Trash2, AlertCircle, RefreshCw, WifiOff } from 'lucide-react';
 import { useComparisonStore } from '@/stores/comparison';
 import { useComparisonSSE } from '@/hooks/useComparisonSSE';
 import { useAddress } from '@/hooks/useAddress';
@@ -36,7 +36,6 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
   const { address } = useAddress();
   const { addToast } = useToast();
 
-  // SSE connection with error state
   const { sseError, retrySSE } = useComparisonSSE(comparisonId);
 
   const count = itemCount();
@@ -67,7 +66,12 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
     }
   }, [count, itemsArray, restaurantId, address, setComparisonId, addToast]);
 
-  // Sort platform results: open & cheapest first
+  const handleFullRetry = useCallback(() => {
+    resetComparison();
+    // Small delay so store resets before re-triggering
+    setTimeout(() => handleCompare(), 50);
+  }, [resetComparison, handleCompare]);
+
   const sortedResults = Array.from(platformResults.values())
     .filter((r) => r.is_open)
     .sort((a, b) => a.grand_total_grosz - b.grand_total_grosz);
@@ -165,21 +169,33 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
       {/* SSE Status Bar */}
       {comparisonId && <PlatformStatusBar />}
 
-      {/* SSE connection error — manual retry */}
+      {/* SSE connection error — prominent banner with retry options */}
       {sseError && (
-        <div className="flex items-center gap-3 p-3 rounded-md border border-danger/20 bg-danger/5">
-          <AlertCircle size={16} className="shrink-0 text-danger" aria-hidden="true" />
-          <p className="flex-1 text-xs text-text-primary">
-            Połączenie przerwane. Niektóre platformy mogły nie odpowiedzieć.
-          </p>
-          <Button variant="outline" size="sm" icon={<RefreshCw size={12} />} onClick={retrySSE}>
-            Ponów
-          </Button>
+        <div className="flex flex-col gap-3 p-4 rounded-md border border-danger/20 bg-danger/5">
+          <div className="flex items-center gap-3">
+            <WifiOff size={20} className="shrink-0 text-danger" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-medium text-text-primary">
+                Połączenie przerwane
+              </p>
+              <p className="text-xs text-text-secondary mt-0.5">
+                Nie udało się pobrać wyników od niektórych platform. Sprawdź połączenie z internetem.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" icon={<RefreshCw size={12} />} onClick={retrySSE}>
+              Wznów połączenie
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleFullRetry}>
+              Porównaj od nowa
+            </Button>
+          </div>
         </div>
       )}
 
       {/* All platforms failed */}
-      {allFailed && (
+      {allFailed && !sseError && (
         <div className="flex flex-col items-center gap-3 p-4 rounded-md border border-danger/20 bg-danger/5 text-center">
           <AlertCircle size={24} className="text-danger" aria-hidden="true" />
           <p className="text-sm font-medium text-text-primary">
@@ -192,10 +208,7 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
             variant="outline"
             size="sm"
             icon={<RefreshCw size={14} />}
-            onClick={() => {
-              resetComparison();
-              handleCompare();
-            }}
+            onClick={handleFullRetry}
           >
             Spróbuj ponownie
           </Button>
@@ -238,11 +251,11 @@ export default function ComparisonCart({ restaurantId }: ComparisonCartProps) {
       )}
 
       {/* Compare again */}
-      {comparisonReady && (
+      {comparisonReady && !sseError && (
         <Button
           variant="ghost"
           size="sm"
-          onClick={resetComparison}
+          onClick={() => resetComparison()}
           fullWidth
         >
           Porównaj ponownie
