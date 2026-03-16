@@ -15,6 +15,11 @@ from sqlalchemy.ext.asyncio import (
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.health import router as health_router
+from app.api.v1.search import router as search_router
+from app.api.v1.restaurants import router as restaurants_router
+from app.api.v1.compare import router as compare_router
+from app.api.v1.redirect import router as redirect_router
+from app.api.v1.feedback import router as feedback_router
 from app.config import Settings, get_settings
 from app.schemas.common import ErrorResponse, ErrorDetail
 
@@ -79,8 +84,27 @@ def create_app() -> FastAPI:
         expose_headers=["X-Request-Id"],
     )
 
+    # ── Rate limiting (slowapi) ─────────────────────────────
+    if settings.rate_limit_enabled:
+        from slowapi import Limiter, _rate_limit_exceeded_handler
+        from slowapi.util import get_remote_address
+        from slowapi.errors import RateLimitExceeded
+
+        limiter = Limiter(
+            key_func=get_remote_address,
+            storage_uri=settings.redis_url,
+            enabled=True,
+        )
+        app.state.limiter = limiter
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     # ── Routers ──────────────────────────────────────────────
     app.include_router(health_router)
+    app.include_router(search_router)
+    app.include_router(restaurants_router)
+    app.include_router(compare_router)
+    app.include_router(redirect_router)
+    app.include_router(feedback_router)
 
     # ── Error handlers (ErrorResponse envelope) ────────────
     @app.exception_handler(StarletteHTTPException)

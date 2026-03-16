@@ -119,11 +119,6 @@ class PlatformMenuItem(UUIDPrimaryKeyMixin, Base):
         back_populates="platform_menu_item",
         lazy="selectin",
     )
-    price_history: Mapped[list["PriceHistory"]] = relationship(
-        "PriceHistory",
-        back_populates="platform_menu_item",
-        lazy="noload",
-    )
     feedbacks: Mapped[list["UserFeedback"]] = relationship(
         "UserFeedback",
         back_populates="platform_menu_item",

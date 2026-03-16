@@ -1,36 +1,45 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
+# =========================
+# SECRETS & ENVIRONMENTS
+# =========================
+.env
+.env.*
+!.env.example
 *.pem
 
-# debug
+# =========================
+# FRONTEND (Node.js/Next.js)
+# =========================
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+coverage/
+.next/
+out/
+build/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
+# =========================
+# BACKEND (Python/FastAPI)
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+env/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
 
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# =========================
+# OS & MISC
+# =========================
+.DS_Store
+Thumbs.db
