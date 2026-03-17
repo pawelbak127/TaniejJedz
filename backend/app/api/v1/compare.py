@@ -1,13 +1,17 @@
-"""POST /api/v1/compare — create comparison (stub for Sprint 2.4)."""
+"""POST /api/v1/compare — create comparison with idempotency, enqueue workers."""
 
 import uuid
 
 from fastapi import APIRouter, Header
 
 from app.dependencies import RedisClient
+from app.jobs.compare_worker import fetch_platform_mock
 from app.schemas.compare import CompareRequest, CompareResponse
 
 router = APIRouter(prefix="/api/v1", tags=["compare"])
+
+# Platforms enabled for Phase 1
+ENABLED_PLATFORMS = ["wolt", "pyszne"]
 
 
 @router.post("/compare", response_model=CompareResponse, status_code=202)
@@ -18,8 +22,8 @@ async def create_comparison(
 ) -> CompareResponse:
     """Create a price comparison. Returns comparison_id for SSE streaming.
 
-    Stub implementation — returns comparison_id but does not enqueue jobs yet.
-    Full implementation in Sprint 2.5.
+    Idempotency: SHA256(restaurant_id + address + items) with 60s Redis TTL.
+    Enqueues one Dramatiq job per platform. Results arrive via SSE.
     """
     idempotency_key = x_idempotency_key or body.compute_idempotency_key()
 
@@ -32,6 +36,12 @@ async def create_comparison(
     comparison_id = str(uuid.uuid4())
     await redis.setex(f"idempotent:{idempotency_key}", 60, comparison_id)
 
-    # TODO Sprint 2.5: enqueue Dramatiq jobs per platform here
+    # ── Enqueue Dramatiq job per platform ───────────────────
+    for platform in ENABLED_PLATFORMS:
+        fetch_platform_mock.send(
+            comparison_id,
+            platform,
+            body.model_dump_json(),
+        )
 
     return CompareResponse(comparison_id=comparison_id, status="processing")

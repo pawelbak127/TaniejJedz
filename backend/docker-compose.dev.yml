@@ -35,9 +35,10 @@ services:
     volumes:
       - .:/opt/app
     command: >
-      dramatiq app.jobs
+      dramatiq app.jobs.compare_worker app.jobs.flush_analytics
       --processes 1
       --threads 2
+      --verbose
     depends_on:
       postgres:
         condition: service_healthy

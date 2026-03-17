@@ -18,8 +18,12 @@ from app.api.health import router as health_router
 from app.api.v1.search import router as search_router
 from app.api.v1.restaurants import router as restaurants_router
 from app.api.v1.compare import router as compare_router
+from app.api.v1.compare_stream import router as compare_stream_router
 from app.api.v1.redirect import router as redirect_router
 from app.api.v1.feedback import router as feedback_router
+from app.api.admin.entities import router as admin_entities_router
+from app.api.admin.scrapers import router as admin_scrapers_router
+from app.api.admin.feedback_review import router as admin_feedback_router
 from app.config import Settings, get_settings
 from app.schemas.common import ErrorResponse, ErrorDetail
 
@@ -53,6 +57,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         max_connections=50,
     )
     app.state.redis = redis
+
+    # ── Services ───────────────────────────────────────────────
+    from app.cache.cache_service import CacheService
+    from app.services.analytics_service import AnalyticsService
+    from app.services.feature_flags import FeatureFlagService
+
+    app.state.cache = CacheService(redis)
+    app.state.analytics = AnalyticsService(redis)
+    app.state.feature_flags = FeatureFlagService(redis)
+
+    # ── Sync feature flags from DB to Redis on startup ─────────
+    try:
+        async with app.state.db_session_factory() as session:
+            count = await app.state.feature_flags.sync_from_db(session)
+            import logging
+            logging.getLogger("app").info(f"Synced {count} feature flags to Redis.")
+    except Exception as e:
+        import logging
+        logging.getLogger("app").warning(f"Failed to sync feature flags: {e}")
 
     yield
 
@@ -103,8 +126,14 @@ def create_app() -> FastAPI:
     app.include_router(search_router)
     app.include_router(restaurants_router)
     app.include_router(compare_router)
+    app.include_router(compare_stream_router)
     app.include_router(redirect_router)
     app.include_router(feedback_router)
+
+    # Admin routers
+    app.include_router(admin_entities_router)
+    app.include_router(admin_scrapers_router)
+    app.include_router(admin_feedback_router)
 
     # ── Error handlers (ErrorResponse envelope) ────────────
     @app.exception_handler(StarletteHTTPException)
