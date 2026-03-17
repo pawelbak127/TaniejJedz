@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     meili_url: str = "http://localhost:7700"
     meili_master_key: str = "localdevmasterkey"
 
+    # ── Nominatim (geocoding) ──────────────────────────────
+    nominatim_url: str = "http://localhost:8080"
+
     # ── CORS ────────────────────────────────────────────────
     cors_origins: list[str] = ["http://localhost:3000"]
 

@@ -1,7 +1,9 @@
 """GET /api/v1/redirect/{platform}/{restaurant_id} — affiliate redirect + tracking."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
+
+from app.dependencies import limiter
 
 router = APIRouter(prefix="/api/v1", tags=["redirect"])
 
@@ -15,7 +17,8 @@ PLATFORM_BASE_URLS: dict[str, str] = {
 
 
 @router.get("/redirect/{platform}/{restaurant_id}")
-async def redirect_to_platform(platform: str, restaurant_id: str) -> RedirectResponse:
+@limiter.limit("30/minute")
+async def redirect_to_platform(request: Request, platform: str, restaurant_id: str) -> RedirectResponse:
     """Redirect user to the ordering platform.
 
     Stub — constructs a basic URL. Full affiliate tracking in later sprint.

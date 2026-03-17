@@ -1,10 +1,10 @@
 """POST /api/v1/search — address-based restaurant search."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.dependencies import DbSession
+from app.dependencies import DbSession, limiter
 from app.models.city import City
 from app.models.restaurant import CanonicalRestaurant, PlatformRestaurant
 from app.models.delivery import DeliveryFee
@@ -19,7 +19,8 @@ router = APIRouter(prefix="/api/v1", tags=["search"])
 
 
 @router.post("/search", response_model=SearchResponse)
-async def search_restaurants(body: SearchRequest, db: DbSession) -> SearchResponse:
+@limiter.limit("15/minute")
+async def search_restaurants(request: Request, body: SearchRequest, db: DbSession) -> SearchResponse:
     """Search restaurants by address/coordinates with filters and pagination."""
 
     # ── Find city ───────────────────────────────────────────

@@ -154,11 +154,26 @@ def _finalize_comparison(
     ]
     savings = (max(totals) - min(totals)) if len(totals) >= 2 else 0
 
+    # ── Format savings_display in Polish ────────────────────
+    PLATFORM_DISPLAY_NAMES = {
+        "wolt": "Wolt",
+        "pyszne": "Pyszne.pl",
+        "ubereats": "Uber Eats",
+        "glovo": "Glovo",
+    }
+    if savings > 0 and cheapest_platform:
+        savings_zl = savings / 100
+        platform_name = PLATFORM_DISPLAY_NAMES.get(cheapest_platform, cheapest_platform)
+        savings_display = f"Zaoszczędź {savings_zl:.2f} zł na {platform_name}!".replace(".", ",")
+    else:
+        savings_display = ""
+
     # ── Write _final ────────────────────────────────────────
     final_payload = {
         "comparison_id": comparison_id,
-        "cheapest_platform": cheapest_platform,
+        "cheapest_open": cheapest_platform,
         "savings_grosz": savings,
+        "savings_display": savings_display,
         "platforms": platforms_data,
     }
     final_json = json.dumps(final_payload)
@@ -170,8 +185,9 @@ def _finalize_comparison(
     ready_event = {
         "event": "ready",
         "comparison_id": comparison_id,
-        "cheapest_platform": cheapest_platform,
+        "cheapest_open": cheapest_platform,
         "savings_grosz": savings,
+        "savings_display": savings_display,
     }
     redis.publish(channel, json.dumps(ready_event))
 

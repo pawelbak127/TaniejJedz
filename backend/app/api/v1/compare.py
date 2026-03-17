@@ -2,9 +2,9 @@
 
 import uuid
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Request
 
-from app.dependencies import RedisClient
+from app.dependencies import RedisClient, limiter
 from app.jobs.compare_worker import fetch_platform_mock
 from app.schemas.compare import CompareRequest, CompareResponse
 
@@ -15,7 +15,9 @@ ENABLED_PLATFORMS = ["wolt", "pyszne"]
 
 
 @router.post("/compare", response_model=CompareResponse, status_code=202)
+@limiter.limit("20/minute")
 async def create_comparison(
+    request: Request,
     body: CompareRequest,
     redis: RedisClient,
     x_idempotency_key: str | None = Header(default=None),
@@ -26,15 +28,19 @@ async def create_comparison(
     Enqueues one Dramatiq job per platform. Results arrive via SSE.
     """
     idempotency_key = x_idempotency_key or body.compute_idempotency_key()
+    redis_key = f"idempotent:{idempotency_key}"
 
-    # ── Idempotency check (60s window) ──────────────────────
-    existing = await redis.get(f"idempotent:{idempotency_key}")
-    if existing:
-        return CompareResponse(comparison_id=existing, status="already_processing")
-
-    # ── Create new comparison ───────────────────────────────
+    # ── Atomic idempotency (SET NX) ─────────────────────────
     comparison_id = str(uuid.uuid4())
-    await redis.setex(f"idempotent:{idempotency_key}", 60, comparison_id)
+    was_set = await redis.set(redis_key, comparison_id, ex=60, nx=True)
+
+    if not was_set:
+        # Key already existed — another request won the race
+        existing = await redis.get(redis_key)
+        return CompareResponse(
+            comparison_id=existing or comparison_id,
+            status="already_processing",
+        )
 
     # ── Enqueue Dramatiq job per platform ───────────────────
     for platform in ENABLED_PLATFORMS:

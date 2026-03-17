@@ -3,9 +3,18 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 from redis.asyncio import Redis
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
+
+# ── Rate limiter (shared singleton) ─────────────────────────
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=get_settings().redis_url,
+    enabled=get_settings().rate_limit_enabled,
+)
 
 
 async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:

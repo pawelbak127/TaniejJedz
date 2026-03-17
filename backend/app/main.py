@@ -108,18 +108,23 @@ def create_app() -> FastAPI:
     )
 
     # ── Rate limiting (slowapi) ─────────────────────────────
-    if settings.rate_limit_enabled:
-        from slowapi import Limiter, _rate_limit_exceeded_handler
-        from slowapi.util import get_remote_address
-        from slowapi.errors import RateLimitExceeded
+    from slowapi.errors import RateLimitExceeded
+    from app.dependencies import limiter
 
-        limiter = Limiter(
-            key_func=get_remote_address,
-            storage_uri=settings.redis_url,
-            enabled=True,
+    app.state.limiter = limiter
+
+    @app.exception_handler(RateLimitExceeded)
+    async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> ORJSONResponse:
+        return ORJSONResponse(
+            status_code=429,
+            content=ErrorResponse(
+                error=ErrorDetail(
+                    code="RATE_LIMITED",
+                    message="Zbyt wiele zapytań. Spróbuj ponownie.",
+                    retry=True,
+                )
+            ).model_dump(),
         )
-        app.state.limiter = limiter
-        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # ── Routers ──────────────────────────────────────────────
     app.include_router(health_router)

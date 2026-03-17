@@ -98,6 +98,7 @@ class ComparisonReadyPayload(BaseModel):
     """Payload for SSE comparison_ready event."""
 
     comparison_id: str
-    cheapest_platform: str | None = None
+    cheapest_open: str | None = None
     savings_grosz: int = 0
+    savings_display: str = ""
     platforms: dict[str, PlatformComparisonResult] = Field(default_factory=dict)

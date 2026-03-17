@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, Request
 
-from app.dependencies import DbSession
+from app.dependencies import DbSession, limiter
 from app.models.feedback import UserFeedback
 from app.schemas.feedback import FeedbackRequest, FeedbackResponse
 
@@ -12,10 +12,11 @@ router = APIRouter(prefix="/api/v1", tags=["feedback"])
 
 
 @router.post("/feedback", response_model=FeedbackResponse, status_code=201)
+@limiter.limit("5/minute")
 async def submit_feedback(
+    request: Request,
     body: FeedbackRequest,
     db: DbSession,
-    request: Request,
 ) -> FeedbackResponse:
     """Submit a data quality report (wrong price, wrong match, etc.)."""
 
