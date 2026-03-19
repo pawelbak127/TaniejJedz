@@ -5,6 +5,7 @@
 .env.*
 !.env.example
 *.pem
+*.json
 
 # =========================
 # FRONTEND (Node.js/Next.js)

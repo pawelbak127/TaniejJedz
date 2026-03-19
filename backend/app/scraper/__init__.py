@@ -7,6 +7,8 @@ Submodules:
   budget_manager   — Daily request caps per platform, Redis counters, alerts
   session_manager  — Per-session cookie jars persisted in Redis
   circuit_breaker  — Per-platform circuit breaker (fail-fast on outages)
+  orchestrator     — Parallel multi-platform fetch with cache fallback
+  quality_scorer   — Score scrape results for data quality
 """
 
 from app.scraper.proxy_manager import ProxyManager
