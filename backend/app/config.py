@@ -67,6 +67,47 @@ class Settings(BaseSettings):
         },
     ]
 
+    # ── Epic 3: Scraper infrastructure ──────────────────────
+
+    # Bright Data residential proxy
+    proxy_enabled: bool = False  # True in production, False = direct requests
+    proxy_host: str = "brd.superproxy.io"
+    proxy_port: int = 22225
+    proxy_username: str = ""
+    proxy_password: str = ""
+    proxy_zone: str = "residential_pl"
+    proxy_country: str = "pl"
+
+    # Daily request budgets per platform
+    budget_wolt_daily: int = 5000
+    budget_pyszne_daily: int = 5000
+    budget_alert_threshold: float = 0.90  # alert at 90%
+
+    # Circuit breaker
+    cb_failure_threshold: int = 5
+    cb_cooldown_seconds: int = 120
+
+    # Scraper HTTP timeouts
+    scraper_timeout_realtime: float = 8.0   # hard 8s for user-facing path
+    scraper_timeout_background: float = 30.0  # Dramatiq background jobs
+    scraper_max_retries: int = 2
+
+    # Session / cookie TTL (seconds)
+    session_cookie_ttl: int = 3600
+
+    # Platform API URLs
+    wolt_search_url: str = "https://restaurant-api.wolt.com/v1/pages/restaurants"
+    wolt_menu_url: str = "https://consumer-api.wolt.com/consumer-api/venue-content-api/v3/web/venue-content/slug"
+    pyszne_search_url: str = "https://rest.api.eu-central-1.production.jet-external.com/discovery/pl/restaurants/enriched"
+    pyszne_menu_base_url: str = "https://www.pyszne.pl/menu"
+
+    # Orchestrator
+    orchestrator_platforms: list[str] = ["wolt", "pyszne"]
+    orchestrator_timeout: float = 8.0        # per-platform hard limit
+    warm_cache_top_n: int = 50               # top N restaurants per city to warm
+    warm_cache_interval_minutes: int = 30
+    nightly_crawl_hour: int = 3              # 3:00 AM CET
+
     @property
     def is_dev(self) -> bool:
         return self.app_env == "development"

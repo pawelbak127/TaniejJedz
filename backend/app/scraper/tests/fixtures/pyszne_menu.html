@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test - Pyszne.pl</title></head>
+<body>
+<script id="__NEXT_DATA__" type="application/json">
+{
+  "props": {
+    "appProps": {
+      "preloadedState": {
+        "menu": {
+          "restaurant": {
+            "cdn": {
+              "restaurant": {
+                "menus": [
+                  {
+                    "categories": [
+                      {
+                        "id": "cat-pizza",
+                        "name": "Pizze",
+                        "itemIds": ["item-margherita", "item-pepperoni"]
+                      },
+                      {
+                        "id": "cat-pasta",
+                        "name": "Makarony",
+                        "itemIds": ["item-carbonara"]
+                      },
+                      {
+                        "id": "cat-napoje",
+                        "name": "Napoje",
+                        "itemIds": ["item-cola"]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "items": {
+                "item-margherita": {
+                  "id": "item-margherita",
+                  "name": "Pizza Margherita",
+                  "description": "Sos pomidorowy, mozzarella, oregano",
+                  "type": "menuitem",
+                  "variations": [
+                    {
+                      "id": "var-marg-25",
+                      "name": "25cm",
+                      "basePrice": 23,
+                      "modifierGroupsIds": ["mg-sos"],
+                      "isAvailable": true,
+                      "menuGroupIds": ["cat-pizza"]
+                    },
+                    {
+                      "id": "var-marg-30",
+                      "name": "30cm",
+                      "basePrice": 29,
+                      "modifierGroupsIds": ["mg-sos"],
+                      "isAvailable": true,
+                      "menuGroupIds": ["cat-pizza"]
+                    },
+                    {
+                      "id": "var-marg-40",
+                      "name": "40cm",
+                      "basePrice": 39,
+                      "modifierGroupsIds": ["mg-sos"],
+                      "isAvailable": true,
+                      "menuGroupIds": ["cat-pizza"]
+                    }
+                  ],
+                  "imageSources": [{"path": "https://images.pyszne.pl/margherita.jpg", "source": "Cloudinaryv2"}]
+                },
+                "item-pepperoni": {
+                  "id": "item-pepperoni",
+                  "name": "Pizza Pepperoni",
+                  "description": "Sos, mozzarella, pepperoni",
+                  "type": "menuitem",
+                  "variations": [
+                    {
+                      "id": "var-pep-30",
+                      "name": "",
+                      "basePrice": 33,
+                      "type": "NoVariation",
+                      "modifierGroupsIds": ["mg-sos", "mg-dodatki"],
+                      "isAvailable": true,
+                      "menuGroupIds": ["cat-pizza"]
+                    }
+                  ],
+                  "imageSources": []
+                },
+                "item-carbonara": {
+                  "id": "item-carbonara",
+                  "name": "Spaghetti Carbonara",
+                  "description": "Boczek, jajko, parmezan",
+                  "type": "menuitem",
+                  "variations": [
+                    {
+                      "id": "var-carb",
+                      "name": "",
+                      "basePrice": 35,
+                      "type": "NoVariation",
+                      "modifierGroupsIds": [],
+                      "isAvailable": true,
+                      "menuGroupIds": ["cat-pasta"]
+                    }
+                  ],
+                  "imageSources": []
+                },
+                "item-cola": {
+                  "id": "item-cola",
+                  "name": "Coca-Cola 0.5L",
+                  "description": null,
+                  "type": "menuitem",
+                  "variations": [
+                    {
+                      "id": "var-cola",
+                      "name": "",
+                      "basePrice": 8,
+                      "type": "NoVariation",
+                      "modifierGroupsIds": [],
+                      "isAvailable": true,
+                      "menuGroupIds": ["cat-napoje"]
+                    }
+                  ],
+                  "imageSources": []
+                }
+              },
+              "modifierGroups": [
+                {
+                  "id": "mg-sos",
+                  "name": "Dodatkowy sos",
+                  "minChoices": 0,
+                  "maxChoices": 3,
+                  "modifiers": ["ms-1", "ms-2", "ms-3"]
+                },
+                {
+                  "id": "mg-dodatki",
+                  "name": "Dodatki",
+                  "minChoices": 1,
+                  "maxChoices": 5,
+                  "modifiers": ["ms-4", "ms-5", "ms-6"]
+                }
+              ],
+              "modifierSets": [
+                {
+                  "id": "ms-1",
+                  "modifier": {"id": "mod-sos-pom", "name": "Sos pomidorowy", "additionPrice": 4, "removePrice": 0, "defaultChoices": 0, "minChoices": 0, "maxChoices": 3}
+                },
+                {
+                  "id": "ms-2",
+                  "modifier": {"id": "mod-sos-czosn", "name": "Sos czosnkowy", "additionPrice": 4, "removePrice": 0, "defaultChoices": 0, "minChoices": 0, "maxChoices": 3}
+                },
+                {
+                  "id": "ms-3",
+                  "modifier": {"id": "mod-sos-bbq", "name": "Sos BBQ", "additionPrice": 5, "removePrice": 0, "defaultChoices": 0, "minChoices": 0, "maxChoices": 3}
+                },
+                {
+                  "id": "ms-4",
+                  "modifier": {"id": "mod-ser", "name": "Dodatkowy ser", "additionPrice": 6, "removePrice": 0, "defaultChoices": 1, "minChoices": 0, "maxChoices": 5}
+                },
+                {
+                  "id": "ms-5",
+                  "modifier": {"id": "mod-jalapeno", "name": "Jalapeño", "additionPrice": 4, "removePrice": 0, "defaultChoices": 0, "minChoices": 0, "maxChoices": 5}
+                },
+                {
+                  "id": "ms-6",
+                  "modifier": {"id": "mod-oliwki", "name": "Oliwki", "additionPrice": 4, "removePrice": 0, "defaultChoices": 0, "minChoices": 0, "maxChoices": 5}
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
+</script>
+</body>
+</html>
