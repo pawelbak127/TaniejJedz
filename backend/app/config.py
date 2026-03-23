@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     # Daily request budgets per platform
     budget_wolt_daily: int = 5000
     budget_pyszne_daily: int = 5000
+    budget_glovo_daily: int = 5000
+    budget_ubereats_daily: int = 5000
     budget_alert_threshold: float = 0.90  # alert at 90%
 
     # Circuit breaker
@@ -102,7 +104,7 @@ class Settings(BaseSettings):
     pyszne_menu_base_url: str = "https://www.pyszne.pl/menu"
 
     # Orchestrator
-    orchestrator_platforms: list[str] = ["wolt", "pyszne"]
+    orchestrator_platforms: list[str] = ["wolt", "pyszne", "glovo", "ubereats"]
     orchestrator_timeout: float = 8.0        # per-platform hard limit
     warm_cache_top_n: int = 50               # top N restaurants per city to warm
     warm_cache_interval_minutes: int = 30

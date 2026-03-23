@@ -109,7 +109,7 @@ class TestCanaryPlatform:
 
     @pytest.mark.asyncio
     async def test_unknown_platform(self, redis):
-        result = await _canary_platform("ubereats")
+        result = await _canary_platform("deliveroo")
         assert result.status == "unknown_platform"
 
 

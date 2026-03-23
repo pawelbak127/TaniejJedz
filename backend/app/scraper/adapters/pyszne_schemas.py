@@ -288,17 +288,34 @@ class PyszneCdnRestaurant(BaseModel):
 class PyszneCdn(BaseModel):
     """Full CDN from __NEXT_DATA__.
 
-    Key difference from assumptions:
-      - modifierGroups is a LIST (not dict)
-      - modifierSets is a LIST (not dict)
-      - categories are in restaurant.menus[0].categories (not cdn.categories)
+    Key variants discovered:
+      - items: DICT {id: item} (most restaurants) OR LIST [{id, name, ...}] (KFC etc.)
+      - modifierGroups: LIST
+      - modifierSets: LIST
+      - categories in restaurant.menus[0].categories
     """
-    items: dict[str, PyszneCdnItem] = Field(default_factory=dict)
+    items: dict[str, PyszneCdnItem] | list = Field(default_factory=dict)
     modifierGroups: list[PyszneModifierGroupEntry] = Field(default_factory=list)
     modifierSets: list[PyszneModifierSetEntry] = Field(default_factory=list)
     restaurant: PyszneCdnRestaurant = Field(default_factory=PyszneCdnRestaurant)
 
     model_config = {"extra": "allow"}
+
+    def model_post_init(self, __context) -> None:
+        """Convert items from list to dict if needed."""
+        if isinstance(self.items, list):
+            items_dict: dict[str, PyszneCdnItem] = {}
+            for item_data in self.items:
+                if isinstance(item_data, dict):
+                    item_id = item_data.get("id", "")
+                    if item_id:
+                        try:
+                            items_dict[item_id] = PyszneCdnItem.model_validate(item_data)
+                        except Exception:
+                            pass
+                elif isinstance(item_data, PyszneCdnItem):
+                    items_dict[item_data.id] = item_data
+            self.items = items_dict
 
     def get_categories(self) -> list[PyszneCdnCategory]:
         """Get categories from first menu."""

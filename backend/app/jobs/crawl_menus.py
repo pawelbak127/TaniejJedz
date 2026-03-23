@@ -26,6 +26,8 @@ async def _crawl_menu_async(platform: str, slug: str) -> dict:
     """Async core — fetch menu for a single restaurant."""
     from app.scraper.adapters.wolt import WoltAdapter
     from app.scraper.adapters.pyszne import PyszneAdapter
+    from app.scraper.adapters.glovo import GlovoAdapter
+    from app.scraper.adapters.ubereats import UberEatsAdapter
     from app.scraper.budget_manager import Priority
 
     settings = get_settings()
@@ -34,6 +36,8 @@ async def _crawl_menu_async(platform: str, slug: str) -> dict:
     adapters = {
         "wolt": WoltAdapter,
         "pyszne": PyszneAdapter,
+        "glovo": GlovoAdapter,
+        "ubereats": UberEatsAdapter,
     }
 
     adapter_cls = adapters.get(platform)

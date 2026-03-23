@@ -22,7 +22,7 @@ class TestBudgetManager:
     async def test_acquire_unknown_platform_raises(self, redis):
         bm = BudgetManager(redis)
         with pytest.raises(ValueError, match="Unknown platform"):
-            await bm.acquire("ubereats", Priority.NORMAL)
+            await bm.acquire("deliveroo", Priority.NORMAL)
 
     @pytest.mark.asyncio
     async def test_low_priority_rejected_at_70pct(self, redis):

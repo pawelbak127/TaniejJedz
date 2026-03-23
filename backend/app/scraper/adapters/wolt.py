@@ -167,6 +167,10 @@ class WoltAdapter(BaseAdapter):
 
     def _extract_sections(self, raw: dict) -> list[dict]:
         """Find sections array in response (Wolt nests at varying paths)."""
+        # Check for error response (wrong slug → {"detail": "Not found"})
+        if "detail" in raw and "sections" not in raw:
+            raise WoltParseError(f"Wolt API error: {raw.get('detail', 'unknown')}")
+
         if "sections" in raw and isinstance(raw["sections"], list):
             return raw["sections"]
         for key in ("page", "content"):

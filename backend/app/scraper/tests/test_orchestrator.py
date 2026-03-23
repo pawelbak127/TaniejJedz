@@ -40,30 +40,42 @@ def _make_menu_item(item_id: str, price: int = 2500) -> NormalizedMenuItem:
     )
 
 
+def _mock_glovo_empty(orch: ScraperOrchestrator) -> None:
+    """Mock non-core adapters to return empty (avoid real HTTP in tests)."""
+    if "glovo" in orch._adapters:
+        orch._adapters["glovo"].search_restaurants = AsyncMock(return_value=[])
+    if "ubereats" in orch._adapters:
+        orch._adapters["ubereats"].search_restaurants = AsyncMock(return_value=[])
+
+
 class TestOrchestratorSearch:
 
     @pytest.mark.asyncio
     async def test_search_merges_platforms(self, redis):
         orch = ScraperOrchestrator(redis)
 
-        # Mock both adapters
         wolt_results = [_make_restaurant("wolt", "pizza-wolt")]
         pyszne_results = [_make_restaurant("pyszne", "pizza-pyszne")]
+        glovo_results = [_make_restaurant("glovo", "pizza-glovo")]
+        uber_results = [_make_restaurant("ubereats", "pizza-uber")]
 
         orch._adapters["wolt"].search_restaurants = AsyncMock(return_value=wolt_results)
         orch._adapters["pyszne"].search_restaurants = AsyncMock(return_value=pyszne_results)
+        orch._adapters["glovo"].search_restaurants = AsyncMock(return_value=glovo_results)
+        orch._adapters["ubereats"].search_restaurants = AsyncMock(return_value=uber_results)
 
         result = await orch.search_all(52.23, 21.01, 5.0)
 
-        assert len(result.all_restaurants) == 2
+        assert len(result.all_restaurants) == 4
         assert "wolt" in result.restaurants
-        assert "pyszne" in result.restaurants
+        assert "ubereats" in result.restaurants
         assert result.errors == {}
 
     @pytest.mark.asyncio
     async def test_search_one_platform_fails(self, redis):
         """If Wolt fails, Pyszne still returns data."""
         orch = ScraperOrchestrator(redis)
+        _mock_glovo_empty(orch)
 
         orch._adapters["wolt"].search_restaurants = AsyncMock(
             side_effect=Exception("Wolt down")
@@ -81,6 +93,7 @@ class TestOrchestratorSearch:
     async def test_search_cache_fallback(self, redis):
         """On failure, serve from cache if available."""
         orch = ScraperOrchestrator(redis)
+        _mock_glovo_empty(orch)
 
         # Pre-populate cache
         cached = [_make_restaurant("wolt", "cached-pizza")]
@@ -105,6 +118,7 @@ class TestOrchestratorSearch:
     async def test_search_writes_cache(self, redis):
         """Successful search writes results to cache."""
         orch = ScraperOrchestrator(redis)
+        _mock_glovo_empty(orch)
 
         restaurants = [_make_restaurant("wolt", "fresh-pizza")]
         orch._adapters["wolt"].search_restaurants = AsyncMock(return_value=restaurants)
@@ -125,11 +139,14 @@ class TestOrchestratorSearch:
         orch = ScraperOrchestrator(redis)
         orch._adapters["wolt"].search_restaurants = AsyncMock(return_value=[])
         orch._adapters["pyszne"].search_restaurants = AsyncMock(return_value=[])
+        orch._adapters["glovo"].search_restaurants = AsyncMock(return_value=[])
+        orch._adapters["ubereats"].search_restaurants = AsyncMock(return_value=[])
 
         result = await orch.search_all(52.23, 21.01, 5.0)
 
         assert "wolt" in result.timings
         assert "pyszne" in result.timings
+        assert "ubereats" in result.timings
         assert result.timings["wolt"] >= 0
 
 
@@ -190,6 +207,7 @@ class TestOrchestratorIsolation:
     async def test_platform_failure_isolated(self, redis):
         """Wolt failure must not affect Pyszne results."""
         orch = ScraperOrchestrator(redis)
+        _mock_glovo_empty(orch)
 
         orch._adapters["wolt"].search_restaurants = AsyncMock(
             side_effect=Exception("Wolt exploded")
@@ -206,16 +224,18 @@ class TestOrchestratorIsolation:
         assert result.restaurants["pyszne"][0].is_online is True
 
     @pytest.mark.asyncio
-    async def test_both_fail_empty_result(self, redis):
+    async def test_all_fail_empty_result(self, redis):
         orch = ScraperOrchestrator(redis)
 
         orch._adapters["wolt"].search_restaurants = AsyncMock(side_effect=Exception("fail"))
         orch._adapters["pyszne"].search_restaurants = AsyncMock(side_effect=Exception("fail"))
+        orch._adapters["glovo"].search_restaurants = AsyncMock(side_effect=Exception("fail"))
+        orch._adapters["ubereats"].search_restaurants = AsyncMock(side_effect=Exception("fail"))
 
         result = await orch.search_all(52.23, 21.01, 5.0)
 
         assert len(result.all_restaurants) == 0
-        assert len(result.errors) == 2
+        assert len(result.errors) == 4
 
 
 class TestOrchestratorResult:

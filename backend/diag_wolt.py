@@ -1,71 +1,89 @@
 import httpx
 import json
+import re
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
-    "Origin": "https://wolt.com",
-    "Wolt-Language": "pl",
-    "Accept": "application/json",
-    "Accept-Encoding": "gzip, deflate",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html",
+    "Accept-Language": "pl-PL,pl;q=0.9",
 }
 
-# Search
 r = httpx.get(
-    "https://restaurant-api.wolt.com/v1/pages/restaurants?lat=52.2297&lon=21.0122",
-    headers=headers,
-    timeout=15,
+    "https://wolt.com/pl/pol/krakow/restaurant/restauracja-sukiennice",
+    headers=headers, timeout=20, follow_redirects=True,
 )
-data = r.json()
+html = r.text
 
-# Find 3 non-McDonalds venues with delivers=true
-venues = []
-for item in data["sections"][1]["items"]:
-    v = item.get("venue", {})
-    if v.get("delivers") and "mcdonald" not in v.get("slug", "").lower():
-        venues.append(v)
-    if len(venues) >= 3:
+# Extract React Query cache
+scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.DOTALL)
+data = None
+for s in scripts:
+    s = s.strip()
+    if s.startswith("{") and '"queries"' in s[:200]:
+        data = json.loads(s)
         break
 
-# Try menu on each until we get sections
-for v in venues:
-    slug = v["slug"]
-    print(f"=== MENU: {v['name']} ({slug}) ===")
-    r2 = httpx.get(
-        f"https://consumer-api.wolt.com/consumer-api/venue-content-api/v3/web/venue-content/slug/{slug}",
-        headers=headers,
-        timeout=15,
-    )
-    menu = r2.json()
-    sections = menu.get("sections", [])
-    print(f"  sections: {len(sections)}")
-
-    if sections:
-        # Found a working menu — dump structure
-        sec = sections[0]
-        print(f"  section[0] keys: {sorted(sec.keys())}")
-        print(f"  section[0] name: {sec.get('name', '?')}")
-        items = sec.get("items", [])
-        print(f"  items: {len(items)}")
-        if items:
-            item = items[0]
-            print(f"  item[0] keys: {sorted(item.keys())[:20]}")
-            with open("diag_menu_item.json", "w", encoding="utf-8") as f:
-                json.dump(item, f, ensure_ascii=False, indent=2)
-            print("  Saved diag_menu_item.json")
-
-            # Check for modifier structure
-            for key in ["options", "option_groups", "modifiers", "modifier_groups"]:
-                if key in item:
-                    print(f"  >>> MODIFIERS in key: '{key}' count={len(item[key])}")
-                    if item[key]:
-                        print(f"      [0] keys: {sorted(item[key][0].keys()) if isinstance(item[key][0], dict) else '?'}")
-
-        # Save first 2 sections
-        with open("diag_menu_sections.json", "w", encoding="utf-8") as f:
-            json.dump(sections[:2], f, ensure_ascii=False, indent=2)
-        print("  Saved diag_menu_sections.json")
+queries = data["queries"]
+# Find menu query
+menu_q = None
+for q in queries:
+    if "venue-assortment" in str(q.get("queryKey", [])) and "category-listing" in str(q.get("queryKey", [])):
+        menu_q = q.get("state", {}).get("data", {})
         break
-    else:
-        print("  (empty — trying next)")
+
+print(f"Menu query keys: {sorted(menu_q.keys())}")
+print(f"categories: {len(menu_q.get('categories', []))}")
+
+# Items
+items = menu_q.get("items", {})
+print(f"items: {type(items).__name__}")
+if isinstance(items, dict):
+    print(f"  count: {len(items)}")
+    first_id = next(iter(items))
+    item = items[first_id]
+    print(f"  first item keys: {sorted(item.keys())}")
+    with open("diag_wolt_item.json", "w", encoding="utf-8") as f:
+        json.dump(item, f, ensure_ascii=False, indent=2)
+    print(f"  Saved diag_wolt_item.json")
+elif isinstance(items, list):
+    print(f"  count: {len(items)}")
+    if items and isinstance(items[0], dict):
+        print(f"  [0] keys: {sorted(items[0].keys())}")
+        with open("diag_wolt_item.json", "w", encoding="utf-8") as f:
+            json.dump(items[0], f, ensure_ascii=False, indent=2)
+        print(f"  Saved diag_wolt_item.json")
+
+# Options (modifiers)
+options = menu_q.get("options", {})
+print(f"\noptions: {type(options).__name__}")
+if isinstance(options, dict):
+    print(f"  count: {len(options)}")
+    if options:
+        first_opt = next(iter(options.values()))
+        print(f"  first option keys: {sorted(first_opt.keys()) if isinstance(first_opt, dict) else type(first_opt)}")
+elif isinstance(options, list):
+    print(f"  count: {len(options)}")
+
+# Variant groups
+vg = menu_q.get("variant_groups", {})
+print(f"\nvariant_groups: {type(vg).__name__}")
+if isinstance(vg, dict):
+    print(f"  count: {len(vg)}")
+    if vg:
+        first_vg = next(iter(vg.values()))
+        print(f"  first vg keys: {sorted(first_vg.keys()) if isinstance(first_vg, dict) else type(first_vg)}")
+        with open("diag_wolt_variant_group.json", "w", encoding="utf-8") as f:
+            json.dump(first_vg, f, ensure_ascii=False, indent=2)
+        print(f"  Saved diag_wolt_variant_group.json")
+
+# Category details
+cats = menu_q.get("categories", [])
+print(f"\nCategories ({len(cats)}):")
+total_items = 0
+for c in cats:
+    item_ids = c.get("item_ids", [])
+    total_items += len(item_ids)
+    print(f"  {c.get('name', '?'):30s} {len(item_ids)} items")
+print(f"Total items across categories: {total_items}")
 
 print("\nDone!")

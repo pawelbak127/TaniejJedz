@@ -273,3 +273,24 @@ class TestEdgeCases:
     def test_cdn_path_fallback(self):
         data = {"props": {"initialState": {"menu": {"restaurant": {"cdn": {"items": {}}}}}}}
         assert extract_cdn(data) is not None
+
+    def test_items_as_list_converted_to_dict(self):
+        """Some restaurants (KFC) have items as list instead of dict."""
+        cdn = PyszneCdn.model_validate({
+            "items": [
+                {"id": "item-1", "name": "Burger", "variations": [
+                    {"id": "v1", "name": "", "basePrice": 25, "modifierGroupsIds": []}
+                ]},
+                {"id": "item-2", "name": "Cola", "variations": [
+                    {"id": "v2", "name": "", "basePrice": 8, "modifierGroupsIds": []}
+                ]},
+            ],
+            "modifierGroups": [],
+            "modifierSets": [],
+            "restaurant": {"menus": []},
+        })
+        assert isinstance(cdn.items, dict)
+        assert len(cdn.items) == 2
+        assert "item-1" in cdn.items
+        assert cdn.items["item-1"].name == "Burger"
+        assert cdn.items["item-2"].variations[0].price_grosz == 800

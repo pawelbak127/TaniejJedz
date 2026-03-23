@@ -81,6 +81,8 @@ class BudgetManager:
         self._caps: dict[str, int] = {
             "wolt": self._settings.budget_wolt_daily,
             "pyszne": self._settings.budget_pyszne_daily,
+            "glovo": self._settings.budget_glovo_daily,
+            "ubereats": self._settings.budget_ubereats_daily,
         }
         self._alert_threshold = self._settings.budget_alert_threshold
 

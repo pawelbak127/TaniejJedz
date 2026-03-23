@@ -44,12 +44,14 @@ async def _canary_platform(platform: str) -> CanaryResult:
     """Run canary check for a single platform."""
     from app.scraper.adapters.wolt import WoltAdapter
     from app.scraper.adapters.pyszne import PyszneAdapter
+    from app.scraper.adapters.glovo import GlovoAdapter
+    from app.scraper.adapters.ubereats import UberEatsAdapter
     from app.scraper.budget_manager import Priority
 
     settings = get_settings()
     redis = AsyncRedis.from_url(settings.redis_url, decode_responses=True)
 
-    adapters = {"wolt": WoltAdapter, "pyszne": PyszneAdapter}
+    adapters = {"wolt": WoltAdapter, "pyszne": PyszneAdapter, "glovo": GlovoAdapter, "ubereats": UberEatsAdapter}
     adapter_cls = adapters.get(platform)
     if not adapter_cls:
         return CanaryResult(platform=platform, status="unknown_platform", error=f"Unknown: {platform}")

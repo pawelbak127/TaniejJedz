@@ -29,6 +29,8 @@ from redis.asyncio import Redis
 from app.config import get_settings
 from app.scraper.adapters.wolt import WoltAdapter
 from app.scraper.adapters.pyszne import PyszneAdapter
+from app.scraper.adapters.glovo import GlovoAdapter
+from app.scraper.adapters.ubereats import UberEatsAdapter
 from app.scraper.base_adapter import BaseAdapter, ScraperError
 from app.scraper.schemas.normalized import (
     NormalizedMenuItem,
@@ -41,6 +43,8 @@ logger = logging.getLogger(__name__)
 ADAPTER_REGISTRY: dict[str, type[BaseAdapter]] = {
     "wolt": WoltAdapter,
     "pyszne": PyszneAdapter,
+    "glovo": GlovoAdapter,
+    "ubereats": UberEatsAdapter,
 }
 
 
