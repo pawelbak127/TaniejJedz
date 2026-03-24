@@ -1,45 +1,69 @@
-import httpx
-import re
+"""
+Diagnostyka — surowy response z Glovo /v3/stores/{slug}.
+Uruchom:
+  cd C:\Projects\TaniejJedz\backend
+  python diag_glovo_raw.py
+"""
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0",
+import httpx
+import json
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "pl-PL,pl;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate",
+    "Glovo-Location-City-Code": "KRK",
 }
 
-# Check a few sitemaps for Warsaw store URLs
-total_waw = 0
-all_slugs = []
+SLUGS = ["kfc-kra", "mcdonald-s-kra"]
 
-for letter in "abcdefghijklmnopqrs":
-    url = f"https://glovoapp.com/sitemap-{letter}.xml"
+for slug in SLUGS:
+    url = f"https://api.glovoapp.com/v3/stores/{slug}?cityCode=KRK"
+    print(f"\n{'='*60}")
+    print(f"GET {url}")
+    print(f"{'='*60}")
+
     try:
-        r = httpx.get(url, headers=headers, timeout=20, follow_redirects=True)
-        if r.status_code != 200:
-            print(f"  {letter}: {r.status_code}")
-            continue
-        # Find Warsaw store URLs
-        waw = re.findall(r'<loc>https://glovoapp\.com/pl/pl/warszawa/stores/([^<]+?)/?</loc>', r.text)
-        total_waw += len(waw)
-        all_slugs.extend(waw)
-        if waw:
-            print(f"  sitemap-{letter}: {len(waw)} Warsaw stores (e.g. {waw[0]})")
+        resp = httpx.get(url, headers=HEADERS, timeout=15)
+        print(f"Status: {resp.status_code}")
+        print(f"Content-Type: {resp.headers.get('content-type', '?')}")
+
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                # Show top-level keys and types
+                print(f"\nTop-level type: {type(data).__name__}")
+                if isinstance(data, dict):
+                    print(f"Keys ({len(data)}):")
+                    for k in sorted(data.keys()):
+                        v = data[k]
+                        if isinstance(v, dict):
+                            print(f"  {k}: dict (keys: {sorted(v.keys())[:8]})")
+                        elif isinstance(v, list):
+                            print(f"  {k}: list[{len(v)}]")
+                            if v and isinstance(v[0], dict):
+                                print(f"    [0] keys: {sorted(v[0].keys())[:8]}")
+                        elif isinstance(v, str) and len(v) > 80:
+                            print(f"  {k}: str ({len(v)} chars) = {v[:80]}...")
+                        else:
+                            print(f"  {k}: {repr(v)}")
+                else:
+                    print(f"Raw (first 500 chars): {json.dumps(data, ensure_ascii=False)[:500]}")
+
+                # Save raw
+                fname = f"diag_glovo_store_{slug}.json"
+                with open(fname, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                print(f"\nSaved to: {fname}")
+
+            except json.JSONDecodeError:
+                print(f"NOT JSON. First 500 chars of body:")
+                print(resp.text[:500])
         else:
-            # Check total PL stores
-            pl = re.findall(r'warszawa/stores/', r.text)
-            print(f"  sitemap-{letter}: {len(pl)} Warsaw refs, {len(r.text)//1024}KB")
-    except Exception as e:
-        print(f"  sitemap-{letter}: ERROR {e}")
+            print(f"Body: {resp.text[:300]}")
 
-print(f"\nTotal Warsaw store slugs: {total_waw}")
-if all_slugs:
-    print(f"Examples: {all_slugs[:10]}")
+    except Exception as exc:
+        print(f"ERROR: {exc}")
 
-# Also check sitemap-country-filter
-print("\n=== COUNTRY FILTER SITEMAP ===")
-r2 = httpx.get("https://glovoapp.com/sitemap-country-filter.xml", headers=headers, timeout=15, follow_redirects=True)
-print(f"Status: {r2.status_code}, Size: {len(r2.text)}")
-waw2 = re.findall(r'warszawa', r2.text)
-print(f"'warszawa' mentions: {len(waw2)}")
-if r2.status_code == 200:
-    print(f"First 500: {r2.text[:500]}")
-
-print("\nDone!")
+print("\n✓ Done!")

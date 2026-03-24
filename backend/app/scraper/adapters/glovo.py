@@ -1,22 +1,23 @@
 """
-Glovo adapter — with slug probing for restaurant discovery (March 2026).
+Glovo adapter — HTML/RSC scraping (March 2026).
 
-Search strategy (since there's no search/feed API):
-  1. HTML scraping: city listing page (gets ~2 SSR results)
-  2. Chain slug probing: try known patterns like "kfc-{city}", "mcdonalds-{city}"
-  3. All discovered slugs → /v3/stores/{slug} detail → normalize
+Strategy (verified against live Glovo):
+  - NO API endpoints used (v3/stores returns 404 without auth)
+  - Search: scrape /categories/jedzenie_1 HTML → extract slug+name from store cards
+  - Menu: fetch store page HTML → parse RSC payload → store info + full menu
 
-This finds ~20-40 restaurants per city from known chains.
-For full discovery, cross-reference names from Wolt/Pyszne in Epic 4.
+Discovery yields ~50 restaurants per city from SSR HTML.
 
-Endpoints:
-  Store detail: GET api.glovoapp.com/v3/stores/{slug}?cityCode={code}
-  Menu content: GET api.glovoapp.com/v4/stores/{id}/addresses/{addressId}/content/main
+RSC structure on store page (verified):
+  self.__next_f.push([1,"...<JSON with store + initialStoreContent>..."])
+  store: {id, name, slug, open, addressId, cityCode, deliveryFeeInfo, ...}
+  initialStoreContent: {data: {body: [sections with PRODUCT_ROW elements]}}
 """
 
 from __future__ import annotations
 
 import asyncio
+import html as html_module
 import json
 import logging
 import math
@@ -46,10 +47,8 @@ from app.scraper.adapters.glovo_schemas import (
 
 logger = logging.getLogger(__name__)
 
-_GLOVO_API = "https://api.glovoapp.com"
-
 # ═══════════════════════════════════════════════════════════════
-# City mapping + slug probing
+# City mapping
 # ═══════════════════════════════════════════════════════════════
 
 _POLISH_CITIES = [
@@ -81,17 +80,30 @@ def _resolve_city(lat: float, lng: float) -> tuple[str, str, str, str]:
     return best
 
 
-# Known chains with Glovo slug patterns: "{brand}-{city_short}"
-_CHAIN_SLUGS = [
-    "kfc", "mcdonalds", "burger-king", "pizza-hut", "subway",
-    "starbucks", "costa-coffee", "popeyes", "north-fish",
-    "biedronka-express", "apteczka-zdrowia",
-    "telepizza", "dominos", "papa-johns",
-    "sushi-master", "sushi-kushi", "thai-wok",
-    "sphinx", "kebab-king", "berlin-doner",
-]
+# Regex: extract store slug + name from SSR HTML store cards.
+# Pattern: href="/pl/pl/{city}/stores/{slug}" ... img alt="{name}"
+_STORE_CARD_RE = re.compile(
+    r'href="/pl/pl/\w+/stores/([a-z0-9][a-z0-9\-]*[a-z0-9])"'
+    r'[^>]*>.*?'
+    r'(?:alt="([^"]*)")?',
+    re.DOTALL,
+)
 
-_PROBE_CONCURRENCY = 10
+# Simpler fallback: just slugs from href
+_SLUG_HREF_RE = re.compile(
+    r'href="/pl/pl/\w+/stores/([a-z0-9][a-z0-9\-]*[a-z0-9])"'
+)
+
+# RSC payload: extract store JSON object from __next_f.push scripts
+# Matches: "store":{...JSON...},"children"
+_RSC_STORE_RE = re.compile(
+    r'"store"\s*:\s*(\{[^}]*"slug"\s*:\s*"[^"]*"[^}]*"addressId"\s*:\s*\d+[^}]*\})',
+)
+
+# RSC payload: extract initialStoreContent JSON
+_RSC_MENU_RE = re.compile(
+    r'"initialStoreContent"\s*:\s*(\{"data"\s*:\s*\{"body"\s*:\s*\[)',
+)
 
 
 class GlovoParseError(ScraperError):
@@ -113,12 +125,6 @@ class GlovoAdapter(BaseAdapter):
     def _set_city(self, lat: float, lng: float) -> None:
         self._city_code, self._city_slug, self._city_name, self._city_short = _resolve_city(lat, lng)
 
-    def _glovo_headers(self) -> dict[str, str]:
-        return {
-            "Accept": "application/json",
-            "Glovo-Location-City-Code": self._city_code,
-        }
-
     # ── Public interface ────────────────────────────────────
 
     async def search_restaurants(
@@ -129,7 +135,11 @@ class GlovoAdapter(BaseAdapter):
         *,
         priority: Priority = Priority.NORMAL,
     ) -> list[NormalizedRestaurant]:
-        """Search via HTML scraping + chain slug probing."""
+        """Search via HTML scraping of /categories/jedzenie_1.
+
+        Extracts ~50 restaurant slugs+names from SSR HTML.
+        No API probing needed.
+        """
         self._set_city(lat, lng)
         logger.info("glovo search: city=%s (%s)", self._city_code, self._city_name)
 
@@ -143,22 +153,8 @@ class GlovoAdapter(BaseAdapter):
             except Exception:
                 pass
 
-        # 1. HTML scraping (gets ~2 SSR results)
-        html_slugs = await self._get_slugs_from_html(priority=priority)
-
-        # 2. Chain slug probing (generates candidates, probes API)
-        chain_slugs = self._generate_chain_slugs()
-
-        # Combine and deduplicate
-        all_slugs = list(set(html_slugs + chain_slugs))
-        logger.info("glovo search: probing %d slug candidates (%d html + %d chains)",
-                     len(all_slugs), len(html_slugs), len(chain_slugs))
-
-        # 3. Probe all slugs concurrently
-        restaurants = await self._probe_slugs(all_slugs, priority=priority)
-
-        # Filter to food only (RESTAURANT category)
-        restaurants = [r for r in restaurants if r.cuisine_tags or "express" not in r.name.lower()]
+        # Scrape food category page
+        restaurants = await self._scrape_category_page(priority=priority)
 
         # Cache 30 min
         if restaurants:
@@ -175,20 +171,14 @@ class GlovoAdapter(BaseAdapter):
         *,
         priority: Priority = Priority.NORMAL,
     ) -> list[NormalizedMenuItem]:
-        store = await self._get_store_detail(slug, priority=priority)
-        if store.cityCode:
-            self._city_code = store.cityCode
+        """Fetch store page HTML → parse RSC → store + menu."""
+        store_data, menu_data = await self._fetch_store_page(slug, priority=priority)
 
-        url = f"{_GLOVO_API}/v4/stores/{store.id}/addresses/{store.addressId}/content/main"
-        resp = await self._get(
-            url,
-            priority=priority,
-            referer=f"https://glovoapp.com/pl/pl/{self._city_slug}/stores/{slug}",
-            extra_headers=self._glovo_headers(),
-        )
+        if menu_data is None:
+            raise GlovoParseError(f"Menu not found in RSC for {slug}")
 
         try:
-            menu = GlovoMenuResponse.model_validate(resp.json())
+            menu = GlovoMenuResponse.model_validate(menu_data)
         except Exception as exc:
             raise GlovoParseError(f"Menu parse failed for {slug}: {exc}") from exc
 
@@ -205,8 +195,11 @@ class GlovoAdapter(BaseAdapter):
         priority: Priority = Priority.NORMAL,
     ) -> NormalizedDeliveryFee:
         self._set_city(lat, lng)
-        store = await self._get_store_detail(slug, priority=priority)
-        return NormalizedDeliveryFee(fee_grosz=store.delivery_fee_grosz)
+        store_data, _ = await self._fetch_store_page(slug, priority=priority)
+        if store_data:
+            store = GlovoStore.model_validate(store_data)
+            return NormalizedDeliveryFee(fee_grosz=store.delivery_fee_grosz)
+        return NormalizedDeliveryFee(fee_grosz=0)
 
     async def get_operating_hours(self, slug: str, **kw) -> list[NormalizedHours]:
         return []
@@ -214,99 +207,310 @@ class GlovoAdapter(BaseAdapter):
     async def get_promotions(self, slug: str, **kw) -> list[NormalizedPromotion]:
         return []
 
-    # ── Slug discovery ──────────────────────────────────────
+    # ── HTML scraping: category page → restaurant list ──────
 
-    def _generate_chain_slugs(self) -> list[str]:
-        """Generate slug candidates from known chains + city suffix."""
-        slugs = []
-        for chain in _CHAIN_SLUGS:
-            # Try common patterns: brand-city_short, brand-city_slug
-            slugs.append(f"{chain}-{self._city_short}")
-            if self._city_slug != self._city_short:
-                slugs.append(f"{chain}-{self._city_slug}")
-        return slugs
-
-    async def _get_slugs_from_html(
+    async def _scrape_category_page(
         self, *, priority: Priority = Priority.NORMAL,
-    ) -> list[str]:
-        """Scrape slugs from city listing (limited — SSR only)."""
+    ) -> list[NormalizedRestaurant]:
+        """Scrape /categories/jedzenie_1 for restaurant slugs + names."""
+        url = f"{self.BASE_URL}/pl/pl/{self._city_slug}/categories/jedzenie_1"
         try:
-            url = f"{self.BASE_URL}/pl/pl/{self._city_slug}/restaurants_702/"
-            resp = await self._get(url, priority=priority, extra_headers={"Accept": "text/html"})
-            html = resp.text
-            slugs = list(set(re.findall(r'/stores/([a-z0-9\-]+)', html)))
-            return [s for s in slugs if len(s) > 3]
+            resp = await self._get(
+                url, priority=priority,
+                extra_headers={"Accept": "text/html"},
+            )
         except Exception as exc:
-            logger.debug("glovo HTML scraping failed: %s", exc)
+            logger.warning("glovo category scraping failed: %s", exc)
             return []
 
-    async def _probe_slugs(
+        html = resp.text
+        restaurants = self._parse_category_html(html)
+        logger.info("glovo category scraping: %d restaurants from %s",
+                     len(restaurants), url)
+        return restaurants
+
+    def _parse_category_html(self, html: str) -> list[NormalizedRestaurant]:
+        """Extract restaurant slug+name from SSR HTML store cards.
+
+        HTML pattern (verified):
+          <a class="StoreCard..." href="/pl/pl/{city}/stores/{slug}">
+            <div ...><img alt="{Name}" loading="lazy" ...>
+        """
+        # Strategy: find all store hrefs, then for each find the nearest img alt
+        restaurants: list[NormalizedRestaurant] = []
+        seen_slugs: set[str] = set()
+
+        # Extract slug → name pairs from store card pattern
+        slug_name_pairs = self._extract_slug_name_pairs(html)
+
+        for slug, name in slug_name_pairs:
+            if slug in seen_slugs:
+                continue
+            if len(slug) <= 3:
+                continue
+            seen_slugs.add(slug)
+
+            # Skip known non-food stores
+            if self._is_non_food_slug(slug):
+                continue
+
+            restaurants.append(NormalizedRestaurant(
+                platform="glovo",
+                platform_restaurant_id=slug,
+                platform_name=name or self._slug_to_name(slug),
+                platform_slug=slug,
+                platform_url=f"https://glovoapp.com/pl/pl/{self._city_slug}/stores/{slug}",
+                name=name or self._slug_to_name(slug),
+                latitude=0.0,
+                longitude=0.0,
+                is_online=True,  # Visible on category page = available
+            ))
+
+        return restaurants
+
+    def _extract_slug_name_pairs(self, html: str) -> list[tuple[str, str]]:
+        """Extract (slug, name) pairs from HTML.
+
+        Tries store card pattern first (href + img alt), falls back to href-only.
+        """
+        pairs: list[tuple[str, str]] = []
+        seen: set[str] = set()
+
+        # Method 1: Find href="/stores/{slug}" followed by img alt="{name}"
+        # within the same <a> block
+        for match in re.finditer(
+            r'href="/pl/pl/\w+/stores/([a-z0-9][a-z0-9\-]*[a-z0-9])"'
+            r'.*?'
+            r'alt="([^"]*)"',
+            html,
+            re.DOTALL,
+        ):
+            slug, name = match.group(1), match.group(2)
+            # Decode HTML entities: &#x27; → ', &amp; → &
+            name = html_module.unescape(name)
+            # Limit match distance — alt should be within ~2000 chars of href
+            if match.end() - match.start() > 3000:
+                continue
+            if slug not in seen:
+                seen.add(slug)
+                pairs.append((slug, name))
+
+        # Method 2: Fallback — href-only slugs not found in method 1
+        for slug_match in _SLUG_HREF_RE.finditer(html):
+            slug = slug_match.group(1)
+            if slug not in seen:
+                seen.add(slug)
+                pairs.append((slug, ""))
+
+        return pairs
+
+    @staticmethod
+    def _is_non_food_slug(slug: str) -> bool:
+        """Filter out non-restaurant stores (pharmacy, grocery)."""
+        non_food = [
+            "apteczka-zdrowia", "biedronka-express", "rossmann",
+            "hebe", "żabka", "zabka", "stokrotka", "carrefour",
+            "auchan", "lidl", "kaufland",
+        ]
+        slug_lower = slug.lower()
+        return any(nf in slug_lower for nf in non_food)
+
+    @staticmethod
+    def _slug_to_name(slug: str) -> str:
+        """Convert slug to display name: 'kfc-kra' → 'Kfc'."""
+        # Remove city suffix (-kra, -waw, etc.)
+        parts = slug.rsplit("-", 1)
+        if len(parts) == 2 and len(parts[1]) <= 4:
+            name_part = parts[0]
+        else:
+            name_part = slug
+        # Also strip trailing numbers/disambiguation: burger-king2 → burger-king
+        name_part = re.sub(r'\d+$', '', name_part)
+        # Convert dashes to spaces, title case
+        return name_part.replace("-", " ").strip().title()
+
+    # ── RSC parsing: store page → store + menu ──────────────
+
+    async def _fetch_store_page(
         self,
-        slugs: list[str],
+        slug: str,
         *,
         priority: Priority = Priority.NORMAL,
-    ) -> list[NormalizedRestaurant]:
-        """Probe store detail API for each slug concurrently."""
-        semaphore = asyncio.Semaphore(_PROBE_CONCURRENCY)
-        results: list[NormalizedRestaurant] = []
+    ) -> tuple[dict | None, dict | None]:
+        """Fetch store page HTML and parse RSC payload.
 
-        async def _try_one(slug: str) -> NormalizedRestaurant | None:
-            async with semaphore:
-                try:
-                    store = await self._get_store_detail(slug, priority=priority)
-                    if store.enabled and store.food:
-                        return self._normalize_store(store)
-                except Exception:
-                    return None
-            return None
-
-        outcomes = await asyncio.gather(
-            *[_try_one(s) for s in slugs],
-            return_exceptions=True,
-        )
-
-        for outcome in outcomes:
-            if isinstance(outcome, NormalizedRestaurant):
-                results.append(outcome)
-
-        return results
-
-    # ── Store detail ────────────────────────────────────────
-
-    async def _get_store_detail(
-        self, slug: str, *, priority: Priority = Priority.NORMAL,
-    ) -> GlovoStore:
-        cache_key = f"scraper:glovo:store:{slug}"
+        Returns: (store_dict, menu_dict) — both can be None if parsing fails.
+        """
+        # Check cache
+        cache_key = f"scraper:glovo:store_rsc:{slug}"
         cached = await self._redis.get(cache_key)
         if cached:
             try:
-                return GlovoStore.model_validate(json.loads(cached))
+                data = json.loads(cached)
+                return data.get("store"), data.get("menu")
             except Exception:
                 pass
 
-        url = f"{_GLOVO_API}/v3/stores/{slug}"
-        resp = await self._get(
-            url,
-            params={"cityCode": self._city_code},
-            priority=priority,
-            extra_headers=self._glovo_headers(),
-            add_delay=False,  # Skip delay for probing
-        )
+        url = f"{self.BASE_URL}/pl/pl/{self._city_slug}/stores/{slug}"
+        try:
+            resp = await self._get(
+                url, priority=priority,
+                extra_headers={"Accept": "text/html"},
+            )
+        except Exception as exc:
+            logger.warning("glovo store page fetch failed for %s: %s", slug, exc)
+            return None, None
+
+        html = resp.text
+        store_data, menu_data = self._parse_store_rsc(html, slug)
+
+        # Cache for 1 hour
+        if store_data or menu_data:
+            cache_data = {"store": store_data, "menu": menu_data}
+            await self._redis.setex(
+                cache_key, 3600,
+                json.dumps(cache_data, default=str),
+            )
+
+        return store_data, menu_data
+
+    def _parse_store_rsc(
+        self, html: str, slug: str,
+    ) -> tuple[dict | None, dict | None]:
+        """Parse RSC flight payload from store page HTML.
+
+        RSC structure (verified from live scrape):
+          __next_f.push([1,"...<encoded JSON>..."])
+          Contains: "store":{id,name,slug,open,addressId,...}
+          And: "initialStoreContent":{data:{body:[sections]}}
+        """
+        store_data: dict | None = None
+        menu_data: dict | None = None
+
+        # Collect all __next_f.push payloads
+        rsc_chunks: list[str] = []
+        for match in re.finditer(
+            r'self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)',
+            html,
+        ):
+            chunk = match.group(1)
+            # Unescape JSON string escapes properly (handles \u0141 → Ł etc.)
+            try:
+                chunk = json.loads('"' + chunk + '"')
+            except (json.JSONDecodeError, Exception):
+                # Fallback: at least handle basic escapes
+                chunk = chunk.replace('\\"', '"').replace('\\\\', '\\')
+            rsc_chunks.append(chunk)
+
+        full_rsc = "".join(rsc_chunks)
+
+        # Extract store object
+        store_data = self._extract_store_from_rsc(full_rsc, slug)
+
+        # Extract menu (initialStoreContent)
+        menu_data = self._extract_menu_from_rsc(full_rsc)
+
+        return store_data, menu_data
+
+    def _extract_store_from_rsc(self, rsc: str, slug: str) -> dict | None:
+        """Extract store JSON from RSC payload using balanced brace matching."""
+        # Find "store":{ in RSC
+        marker = '"store":{'
+        idx = rsc.find(marker)
+        if idx == -1:
+            logger.debug("glovo RSC: 'store' key not found for %s", slug)
+            return None
+
+        json_start = idx + len('"store":')
+        store_json = self._extract_balanced_json(rsc, json_start)
+        if store_json is None:
+            return None
 
         try:
-            store = GlovoStore.model_validate(resp.json())
-        except Exception as exc:
-            raise GlovoParseError(f"Store parse failed for {slug}: {exc}") from exc
+            return json.loads(store_json)
+        except json.JSONDecodeError as exc:
+            logger.debug("glovo RSC: store JSON parse failed for %s: %s", slug, exc)
+            return None
 
-        await self._redis.setex(
-            cache_key, 3600,
-            json.dumps(store.model_dump(mode="json"), default=str),
-        )
-        return store
+    def _extract_menu_from_rsc(self, rsc: str) -> dict | None:
+        """Extract initialStoreContent from RSC payload."""
+        marker = '"initialStoreContent":'
+        idx = rsc.find(marker)
+        if idx == -1:
+            logger.debug("glovo RSC: 'initialStoreContent' not found")
+            return None
+
+        json_start = idx + len(marker)
+        menu_json = self._extract_balanced_json(rsc, json_start)
+        if menu_json is None:
+            return None
+
+        try:
+            return json.loads(menu_json)
+        except json.JSONDecodeError as exc:
+            logger.debug("glovo RSC: menu JSON parse failed: %s", exc)
+            return None
+
+    @staticmethod
+    def _extract_balanced_json(text: str, start: int) -> str | None:
+        """Extract a balanced JSON object or array starting at position `start`.
+
+        Handles nested braces/brackets and string escapes.
+        """
+        if start >= len(text):
+            return None
+
+        open_char = text[start]
+        if open_char == '{':
+            close_char = '}'
+        elif open_char == '[':
+            close_char = ']'
+        else:
+            return None
+
+        depth = 0
+        in_string = False
+        escape_next = False
+        i = start
+
+        while i < len(text):
+            ch = text[i]
+
+            if escape_next:
+                escape_next = False
+                i += 1
+                continue
+
+            if ch == '\\' and in_string:
+                escape_next = True
+                i += 1
+                continue
+
+            if ch == '"' and not escape_next:
+                in_string = not in_string
+                i += 1
+                continue
+
+            if not in_string:
+                if ch == open_char:
+                    depth += 1
+                elif ch == close_char:
+                    depth -= 1
+                    if depth == 0:
+                        return text[start:i + 1]
+
+            i += 1
+
+        # If we hit a very long string (>500KB), truncation likely — return None
+        logger.debug("glovo RSC: balanced JSON extraction failed (depth=%d, scanned %d chars)", depth, i - start)
+        return None
 
     # ── Normalization ───────────────────────────────────────
 
-    def _normalize_store(self, store: GlovoStore) -> NormalizedRestaurant:
+    def _normalize_store_from_rsc(self, store_data: dict) -> NormalizedRestaurant:
+        """Normalize store data from RSC payload."""
+        store = GlovoStore.model_validate(store_data)
+
         fee = NormalizedDeliveryFee(
             fee_grosz=store.delivery_fee_grosz,
         ) if store.deliveryFeeInfo else None

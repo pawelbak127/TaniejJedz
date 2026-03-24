@@ -1,86 +1,106 @@
-import httpx
-import json
-import re
+"""
+Diagnostyka Uber Eats — testuje ile restauracji wyciągniemy
+z różnych query terms via getSearchSuggestionsV1.
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "application/json",
-    "Content-Type": "application/json",
-    "x-csrf-token": "x",
-}
+Uruchom:
+  cd C:\Projects\TaniejJedz\backend
+  $env:REDIS_URL="redis://:localdevpassword@localhost:6379/0"
+  python diag_ubereats_queries.py
+"""
 
-# 1. Search suggestions — works!
-print("=== 1. SEARCH SUGGESTIONS ===")
-r = httpx.post(
-    "https://www.ubereats.com/_p/api/getSearchSuggestionsV1?localeCode=pl-en",
-    json={"userQuery": "KFC", "date": "", "startTime": 0, "endTime": 0},
-    headers=headers, timeout=10,
-)
-data = r.json()
-print(f"Status: {r.status_code}, Size: {len(r.text)}")
-inner = data.get("data", [])
-print(f"data type: {type(inner).__name__}, len: {len(inner) if isinstance(inner, list) else '?'}")
+import asyncio
+from collections import defaultdict
 
-if isinstance(inner, list):
-    for i, item in enumerate(inner[:5]):
-        if isinstance(item, dict):
-            print(f"  [{i}] keys: {sorted(item.keys())[:10]}")
-            print(f"      title: {item.get('title', '?')}")
-            print(f"      uuid: {item.get('uuid', item.get('storeUuid', '?'))}")
-    # Save first result
-    if inner:
-        with open("diag_ubereats_suggestion.json", "w", encoding="utf-8") as f:
-            json.dump(inner[0], f, ensure_ascii=False, indent=2)
-        print(f"\nSaved diag_ubereats_suggestion.json")
+from redis.asyncio import Redis
+from app.config import get_settings
+from app.scraper.adapters.ubereats import UberEatsAdapter
 
-# 2. Try more queries
-print("\n=== 2. MORE SEARCHES ===")
-for query in ["pizza", "burger", "sushi"]:
-    r2 = httpx.post(
-        "https://www.ubereats.com/_p/api/getSearchSuggestionsV1?localeCode=pl-en",
-        json={"userQuery": query, "date": "", "startTime": 0, "endTime": 0},
-        headers=headers, timeout=10,
-    )
-    results = r2.json().get("data", [])
-    stores = [x for x in results if isinstance(x, dict) and x.get("storeUuid", x.get("uuid"))]
-    print(f"  '{query}': {len(results)} results, {len(stores)} with UUID")
-    for s in stores[:3]:
-        name = s.get("title", "?")
-        uuid = s.get("storeUuid", s.get("uuid", "?"))
-        print(f"    {name[:40]:40s} {uuid[:30]}")
 
-# 3. Also try getSearchV1 (full search, not suggestions)
-print("\n=== 3. FULL SEARCH ===")
-r3 = httpx.post(
-    "https://www.ubereats.com/_p/api/getSearchV1?localeCode=pl-en",
-    json={"userQuery": "pizza", "date": "", "startTime": 0, "endTime": 0},
-    headers=headers, timeout=10,
-)
-print(f"Status: {r3.status_code}, Size: {len(r3.text)}")
-if r3.status_code == 200:
-    d3 = r3.json()
-    print(f"keys: {sorted(d3.keys())[:10]}")
-    inner3 = d3.get("data", {})
-    if isinstance(inner3, dict):
-        print(f"data keys: {sorted(inner3.keys())[:10]}")
-        stores_map = inner3.get("storesMap", {})
-        print(f"storesMap: {len(stores_map)} stores")
-        for uid, s in list(stores_map.items())[:5]:
-            print(f"  {s.get('title', '?')[:40]:40s} {uid[:30]}")
+# Current queries (10)
+CURRENT_QUERIES = [
+    "pizza", "burger", "sushi", "kebab", "kurczak",
+    "KFC", "McDonald", "ramen", "indyjska", "poke",
+]
 
-# 4. HTML page for slug+uuid discovery
-print("\n=== 4. HTML CITY PAGE ===")
-r4 = httpx.get(
-    "https://www.ubereats.com/pl-en/city/warsaw-emea",
-    headers={**headers, "Accept": "text/html"},
-    timeout=20, follow_redirects=True,
-)
-print(f"Status: {r4.status_code}, Size: {len(r4.text)//1024}KB, URL: {r4.url}")
-slugs = set(re.findall(r'/store/([a-zA-Z0-9\-&%.]+)/([0-9a-f\-]{36})', r4.text))
-print(f"Store slug+uuid pairs: {len(slugs)}")
-for slug, uuid in list(slugs)[:10]:
-    print(f"  {slug[:45]:45s} {uuid}")
-if len(slugs) > 10:
-    print(f"  ... +{len(slugs) - 10}")
+# Extended queries — Polish food, cuisines, chains, popular terms
+EXTRA_QUERIES = [
+    # Polish food
+    "pierogi", "schabowy", "żurek", "naleśniki", "zapiekanka",
+    # Cuisine types
+    "tajska", "chińska", "meksykańska", "włoska", "turecka",
+    # Popular chains
+    "Dominos", "Subway", "Starbucks", "Pizza Hut", "Burger King",
+    # Food types
+    "pad thai", "pho", "tacos", "pasta", "śniadanie",
+    "bowl", "vegan", "fit", "zupa", "makaron",
+    # Generic
+    "jedzenie", "restauracja", "lunch", "obiad", "kolacja",
+]
 
-print("\nDone!")
+
+async def main() -> None:
+    settings = get_settings()
+    redis = Redis.from_url(settings.redis_url, decode_responses=True)
+    adapter = UberEatsAdapter(redis)
+
+    all_discovered: dict[str, dict] = {}  # uuid → {title, slug, source_queries}
+    query_yields: dict[str, int] = {}     # query → new unique count
+
+    all_queries = CURRENT_QUERIES + EXTRA_QUERIES
+
+    print(f"Testing {len(all_queries)} query terms...")
+    print(f"{'='*60}")
+
+    for i, query in enumerate(all_queries):
+        try:
+            stores = await adapter._search_suggestions(query)
+            new_count = 0
+            for s in stores:
+                if s.uuid and s.uuid not in all_discovered:
+                    all_discovered[s.uuid] = {
+                        "title": s.title,
+                        "slug": s.slug,
+                        "cuisines": s.cuisine_tags,
+                        "first_query": query,
+                    }
+                    new_count += 1
+            query_yields[query] = new_count
+            total = len(all_discovered)
+            marker = f" +{new_count}" if new_count > 0 else ""
+            print(f"  [{i+1:2d}/{len(all_queries)}] {query:20s} → {len(stores):2d} results, {new_count:2d} new (total: {total}){marker}")
+        except Exception as exc:
+            print(f"  [{i+1:2d}/{len(all_queries)}] {query:20s} → ERROR: {exc}")
+            query_yields[query] = 0
+
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"RESULTS")
+    print(f"{'='*60}")
+    print(f"  Total unique restaurants: {len(all_discovered)}")
+    print(f"  From current 10 queries: {sum(query_yields.get(q, 0) for q in CURRENT_QUERIES)}")
+    print(f"  From extra queries:      {sum(query_yields.get(q, 0) for q in EXTRA_QUERIES)}")
+
+    # Top yielding queries
+    print(f"\n  Top queries by new discoveries:")
+    for q, count in sorted(query_yields.items(), key=lambda x: -x[1])[:15]:
+        if count > 0:
+            src = "CURRENT" if q in CURRENT_QUERIES else "NEW"
+            print(f"    {q:20s} +{count:2d} [{src}]")
+
+    # Zero-yield queries
+    zero = [q for q, c in query_yields.items() if c == 0]
+    if zero:
+        print(f"\n  Zero-yield queries ({len(zero)}): {', '.join(zero[:20])}")
+
+    # All restaurants
+    print(f"\n  All discovered restaurants:")
+    for uuid, info in sorted(all_discovered.items(), key=lambda x: x[1]["title"]):
+        cuisines = ", ".join(info["cuisines"][:3]) if info["cuisines"] else ""
+        print(f"    {info['title'][:40]:40s} [{cuisines}] (via '{info['first_query']}')")
+
+    print(f"\n✓ Done!")
+    await redis.aclose()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

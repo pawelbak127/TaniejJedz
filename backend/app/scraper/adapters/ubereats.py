@@ -2,12 +2,18 @@
 Uber Eats adapter — with parallel search via suggestions (March 2026).
 
 Search strategy:
-  POST getSearchSuggestionsV1 with 10 common food terms IN PARALLEL (max 5 concurrent).
+  POST getSearchSuggestionsV1 with ~30 food terms IN PARALLEL (max 5 concurrent).
+  API returns max 2 store results per query.
   Collect unique store UUIDs → lightweight normalization.
-  ~10 queries × ~1s = ~2s total (within 8s orchestrator timeout).
+  ~30 queries × ~1s / 5 concurrent = ~6s total (within 8s orchestrator timeout).
 
 Menu: POST getStoreV1 → store info + full catalog.
 Price already in GROSZ — zero conversion.
+
+IMPORTANT: platform_slug = UUID (not human-readable slug).
+  UberEats API identifies stores by UUID, so all internal references
+  use UUID to ensure get_menu() receives the correct identifier.
+  The human-readable slug is only used for constructing platform_url.
 """
 
 from __future__ import annotations
@@ -48,10 +54,20 @@ _UBEREATS_HEADERS = {
     "x-csrf-token": "x",
 }
 
-# Fewer queries, most effective terms (Polish + chains)
+# Expanded query pool — verified via diag (March 2026).
+# API returns max 2 stores per query. Only queries yielding >0 results included.
+# ~30 queries × 5 concurrent = ~6 batches × ~1s = ~6s (within 8s timeout).
 _SEARCH_QUERIES = [
-    "pizza", "burger", "sushi", "kebab", "kurczak",
-    "KFC", "McDonald", "ramen", "indyjska", "poke",
+    # Food types (high yield — 2 each)
+    "pizza", "burger", "sushi", "kebab", "ramen",
+    "pierogi", "zapiekanka", "tacos", "pasta", "bowl",
+    "vegan", "fit", "poke", "pad thai", "obiad",
+    # Chains (1-2 each)
+    "KFC", "McDonald", "Dominos", "Subway", "Starbucks",
+    "Pizza Hut", "Burger King",
+    # Cuisine + misc (1-2 each)
+    "indyjska", "turecka", "naleśniki", "pho",
+    "makaron", "restauracja", "lunch",
 ]
 
 # Max concurrent suggestion requests
@@ -222,7 +238,10 @@ class UberEatsAdapter(BaseAdapter):
             platform="ubereats",
             platform_restaurant_id=store.uuid,
             platform_name=store.title,
-            platform_slug=store.slug,
+            # CRITICAL: platform_slug = UUID, not human slug.
+            # Orchestrator passes platform_slug to get_menu(),
+            # and UberEats API requires UUID, not slug.
+            platform_slug=store.uuid,
             platform_url=f"https://www.ubereats.com/pl-en/store/{store.slug}/{store.uuid}",
             name=store.title,
             latitude=0.0,
@@ -237,7 +256,7 @@ class UberEatsAdapter(BaseAdapter):
             platform="ubereats",
             platform_restaurant_id=store.uuid,
             platform_name=store.title,
-            platform_slug=store.slug,
+            platform_slug=store.uuid,  # UUID — consistent with _normalize_suggestion
             platform_url=f"https://www.ubereats.com/pl-en/store/{store.slug}/{store.uuid}",
             name=store.title,
             address_street=store.location.streetAddress,

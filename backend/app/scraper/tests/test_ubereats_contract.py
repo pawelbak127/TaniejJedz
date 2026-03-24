@@ -73,6 +73,12 @@ class TestStoreNormalization:
         assert n.name == "Bollywood Lounge Restaurant"
         assert n.is_online is True
 
+    def test_platform_slug_is_uuid(self, store_data, adapter):
+        """platform_slug must be UUID — orchestrator passes it to get_menu()."""
+        n = adapter._normalize_store(store_data)
+        assert n.platform_slug == "6aaa3cb9-03a0-5d35-a00a-500f982d2120"
+        assert n.platform_slug == n.platform_restaurant_id
+
     def test_location(self, store_data, adapter):
         n = adapter._normalize_store(store_data)
         assert n.latitude == pytest.approx(52.23, abs=0.01)
@@ -88,9 +94,11 @@ class TestStoreNormalization:
         n = adapter._normalize_store(store_data)
         assert n.delivery_fee.fee_grosz == 399
 
-    def test_url(self, store_data, adapter):
+    def test_url_contains_both_slug_and_uuid(self, store_data, adapter):
         n = adapter._normalize_store(store_data)
         assert "ubereats.com" in n.platform_url
+        # URL uses human slug for readability + UUID for identification
+        assert "6aaa3cb9-03a0-5d35-a00a-500f982d2120" in n.platform_url
 
 
 # ═══════════════════════════════════════════════════════════
@@ -258,18 +266,28 @@ class TestSearchSuggestions:
         resp = UberEatsSuggestionsResponse.model_validate({"data": [], "status": "success"})
         assert resp.store_results() == []
 
-    def test_suggestion_normalization(self, adapter):
+    def test_suggestion_normalization_slug_is_uuid(self, adapter):
+        """platform_slug must be UUID for get_menu() compatibility."""
         from app.scraper.adapters.ubereats_schemas import UberEatsSuggestionStore
         store = UberEatsSuggestionStore(
-            uuid="abc-123", title="Test Restaurant", slug="test-rest",
+            uuid="abc-123-def", title="Test Restaurant", slug="test-rest",
             categories=["Pizza", None, "Italian"], isOrderable=True,
             heroImageUrl="https://img.uber.com/test.jpg",
         )
         n = adapter._normalize_suggestion(store)
         assert n.platform == "ubereats"
-        assert n.platform_slug == "test-rest"
+        assert n.platform_slug == "abc-123-def"  # UUID, not human slug
+        assert n.platform_restaurant_id == "abc-123-def"
         assert n.name == "Test Restaurant"
         assert n.is_online is True
         assert "Pizza" in n.cuisine_tags
         assert "Italian" in n.cuisine_tags
-        assert "ubereats.com" in n.platform_url
+        # URL contains both human slug and UUID
+        assert "test-rest" in n.platform_url
+        assert "abc-123-def" in n.platform_url
+
+    def test_query_pool_size(self):
+        """Verify we have enough queries for good coverage."""
+        from app.scraper.adapters.ubereats import _SEARCH_QUERIES
+        assert len(_SEARCH_QUERIES) >= 25
+        assert len(_SEARCH_QUERIES) <= 35  # Don't exceed timeout budget
