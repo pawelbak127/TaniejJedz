@@ -78,18 +78,34 @@ class PlatformRestaurant(UUIDPrimaryKeyMixin, Base):
     __table_args__ = (
         UniqueConstraint("platform", "platform_restaurant_id", name="uq_platform_rest_unique"),
         Index("idx_platform_rest_canonical", "canonical_restaurant_id", "platform"),
+        Index(
+            "idx_platform_rest_geo",
+            "latitude",
+            "longitude",
+            postgresql_where="latitude IS NOT NULL AND longitude IS NOT NULL",
+        ),
+        Index(
+            "idx_platform_rest_unmatched",
+            "platform",
+            "canonical_restaurant_id",
+            postgresql_where="canonical_restaurant_id IS NULL",
+        ),
     )
 
-    canonical_restaurant_id: Mapped[uuid.UUID] = mapped_column(
+    # ── NULLABLE: platform restaurant can exist before entity matching ──
+    canonical_restaurant_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("canonical_restaurants.id"),
-        nullable=False,
+        nullable=True,
     )
     platform: Mapped[str] = mapped_column(String(50), nullable=False)
     platform_restaurant_id: Mapped[str] = mapped_column(String(255), nullable=False)
     platform_name: Mapped[str] = mapped_column(String(255), nullable=False)
     platform_slug: Mapped[str | None] = mapped_column(String(255), nullable=True)
     platform_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # ── Geolocation from platform (for PostGIS blocking in matcher) ──
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     match_confidence: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
     platform_metadata: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -103,7 +119,7 @@ class PlatformRestaurant(UUIDPrimaryKeyMixin, Base):
     )
 
     # Relationships
-    canonical_restaurant: Mapped["CanonicalRestaurant"] = relationship(
+    canonical_restaurant: Mapped["CanonicalRestaurant | None"] = relationship(
         "CanonicalRestaurant", back_populates="platform_restaurants"
     )
     operating_hours: Mapped[list["OperatingHours"]] = relationship(
@@ -153,4 +169,3 @@ class OperatingHours(UUIDPrimaryKeyMixin, Base):
     platform_restaurant: Mapped["PlatformRestaurant"] = relationship(
         "PlatformRestaurant", back_populates="operating_hours"
     )
-

@@ -437,6 +437,8 @@ async def seed() -> None:
                     platform_name=rdata["name"],
                     platform_slug=pdata["slug"],
                     platform_url=None,
+                    latitude=rdata["lat"],
+                    longitude=rdata["lng"],
                     match_confidence=1.0,
                     is_active=True,
                     last_scraped_at=now,

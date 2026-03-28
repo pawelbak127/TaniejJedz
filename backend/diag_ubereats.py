@@ -1,41 +1,18 @@
 """
-Diagnostyka Uber Eats — testuje ile restauracji wyciągniemy
-z różnych query terms via getSearchSuggestionsV1.
-
+Diagnostyka UberEats — timing każdego kroku search_restaurants().
 Uruchom:
   cd C:\Projects\TaniejJedz\backend
   $env:REDIS_URL="redis://:localdevpassword@localhost:6379/0"
-  python diag_ubereats_queries.py
+  python diag_ubereats_timing.py
 """
 
 import asyncio
-from collections import defaultdict
+import time
+import traceback
 
 from redis.asyncio import Redis
 from app.config import get_settings
-from app.scraper.adapters.ubereats import UberEatsAdapter
-
-
-# Current queries (10)
-CURRENT_QUERIES = [
-    "pizza", "burger", "sushi", "kebab", "kurczak",
-    "KFC", "McDonald", "ramen", "indyjska", "poke",
-]
-
-# Extended queries — Polish food, cuisines, chains, popular terms
-EXTRA_QUERIES = [
-    # Polish food
-    "pierogi", "schabowy", "żurek", "naleśniki", "zapiekanka",
-    # Cuisine types
-    "tajska", "chińska", "meksykańska", "włoska", "turecka",
-    # Popular chains
-    "Dominos", "Subway", "Starbucks", "Pizza Hut", "Burger King",
-    # Food types
-    "pad thai", "pho", "tacos", "pasta", "śniadanie",
-    "bowl", "vegan", "fit", "zupa", "makaron",
-    # Generic
-    "jedzenie", "restauracja", "lunch", "obiad", "kolacja",
-]
+from app.scraper.adapters.ubereats import UberEatsAdapter, _SEARCH_QUERIES, _SUGGESTION_CONCURRENCY
 
 
 async def main() -> None:
@@ -43,62 +20,76 @@ async def main() -> None:
     redis = Redis.from_url(settings.redis_url, decode_responses=True)
     adapter = UberEatsAdapter(redis)
 
-    all_discovered: dict[str, dict] = {}  # uuid → {title, slug, source_queries}
-    query_yields: dict[str, int] = {}     # query → new unique count
+    print(f"Queries: {len(_SEARCH_QUERIES)}")
+    print(f"Concurrency: {_SUGGESTION_CONCURRENCY}")
+    print(f"Orchestrator timeout: {settings.orchestrator_timeout}s")
+    print(f"Scraper timeout: {settings.scraper_timeout_realtime}s")
 
-    all_queries = CURRENT_QUERIES + EXTRA_QUERIES
-
-    print(f"Testing {len(all_queries)} query terms...")
-    print(f"{'='*60}")
-
-    for i, query in enumerate(all_queries):
-        try:
-            stores = await adapter._search_suggestions(query)
-            new_count = 0
-            for s in stores:
-                if s.uuid and s.uuid not in all_discovered:
-                    all_discovered[s.uuid] = {
-                        "title": s.title,
-                        "slug": s.slug,
-                        "cuisines": s.cuisine_tags,
-                        "first_query": query,
-                    }
-                    new_count += 1
-            query_yields[query] = new_count
-            total = len(all_discovered)
-            marker = f" +{new_count}" if new_count > 0 else ""
-            print(f"  [{i+1:2d}/{len(all_queries)}] {query:20s} → {len(stores):2d} results, {new_count:2d} new (total: {total}){marker}")
-        except Exception as exc:
-            print(f"  [{i+1:2d}/{len(all_queries)}] {query:20s} → ERROR: {exc}")
-            query_yields[query] = 0
-
-    # Summary
+    # Step 1: Time individual query
     print(f"\n{'='*60}")
-    print(f"RESULTS")
-    print(f"{'='*60}")
-    print(f"  Total unique restaurants: {len(all_discovered)}")
-    print(f"  From current 10 queries: {sum(query_yields.get(q, 0) for q in CURRENT_QUERIES)}")
-    print(f"  From extra queries:      {sum(query_yields.get(q, 0) for q in EXTRA_QUERIES)}")
+    print("STEP 1: Single query timing (3 queries)")
+    print("="*60)
+    for q in _SEARCH_QUERIES[:3]:
+        start = time.monotonic()
+        try:
+            stores = await adapter._search_suggestions(q)
+            elapsed = (time.monotonic() - start) * 1000
+            print(f"  '{q}': {len(stores)} stores, {elapsed:.0f}ms")
+        except Exception as exc:
+            elapsed = (time.monotonic() - start) * 1000
+            print(f"  '{q}': ERROR {exc}, {elapsed:.0f}ms")
 
-    # Top yielding queries
-    print(f"\n  Top queries by new discoveries:")
-    for q, count in sorted(query_yields.items(), key=lambda x: -x[1])[:15]:
-        if count > 0:
-            src = "CURRENT" if q in CURRENT_QUERIES else "NEW"
-            print(f"    {q:20s} +{count:2d} [{src}]")
+    # Step 2: Time full search
+    print(f"\n{'='*60}")
+    print("STEP 2: Full search_restaurants() timing")
+    print("="*60)
+    start = time.monotonic()
+    try:
+        restaurants = await adapter.search_restaurants(50.0614, 19.9372, 5.0)
+        elapsed = (time.monotonic() - start) * 1000
+        print(f"  Result: {len(restaurants)} restaurants in {elapsed:.0f}ms")
+    except Exception as exc:
+        elapsed = (time.monotonic() - start) * 1000
+        print(f"  ERROR: {type(exc).__name__}: {exc} in {elapsed:.0f}ms")
+        traceback.print_exc()
 
-    # Zero-yield queries
-    zero = [q for q, c in query_yields.items() if c == 0]
-    if zero:
-        print(f"\n  Zero-yield queries ({len(zero)}): {', '.join(zero[:20])}")
+    # Step 3: Time with asyncio.wait_for (simulating orchestrator)
+    print(f"\n{'='*60}")
+    print("STEP 3: With orchestrator timeout (8s)")
+    print("="*60)
+    # Flush cache first
+    keys = []
+    async for key in redis.scan_iter("scraper:ubereats:*"):
+        keys.append(key)
+    if keys:
+        await redis.delete(*keys)
+        print(f"  Flushed {len(keys)} cache keys")
 
-    # All restaurants
-    print(f"\n  All discovered restaurants:")
-    for uuid, info in sorted(all_discovered.items(), key=lambda x: x[1]["title"]):
-        cuisines = ", ".join(info["cuisines"][:3]) if info["cuisines"] else ""
-        print(f"    {info['title'][:40]:40s} [{cuisines}] (via '{info['first_query']}')")
+    start = time.monotonic()
+    try:
+        restaurants = await asyncio.wait_for(
+            adapter.search_restaurants(50.0614, 19.9372, 5.0),
+            timeout=8.0,
+        )
+        elapsed = (time.monotonic() - start) * 1000
+        print(f"  OK: {len(restaurants)} restaurants in {elapsed:.0f}ms")
+    except asyncio.TimeoutError:
+        elapsed = (time.monotonic() - start) * 1000
+        print(f"  TIMEOUT after {elapsed:.0f}ms")
+    except Exception as exc:
+        elapsed = (time.monotonic() - start) * 1000
+        print(f"  ERROR: {type(exc).__name__}: {exc} in {elapsed:.0f}ms")
 
-    print(f"\n✓ Done!")
+    # Step 4: Budget check (how many requests consumed)
+    print(f"\n{'='*60}")
+    print("STEP 4: Budget status")
+    print("="*60)
+    from app.scraper.budget_manager import BudgetManager
+    bm = BudgetManager(redis)
+    status = await bm.get_status("ubereats")
+    print(f"  Used: {status['used']}/{status['cap']}")
+
+    print("\n✓ Done!")
     await redis.aclose()
 
 

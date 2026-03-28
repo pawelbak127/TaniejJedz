@@ -289,5 +289,5 @@ class TestSearchSuggestions:
     def test_query_pool_size(self):
         """Verify we have enough queries for good coverage."""
         from app.scraper.adapters.ubereats import _SEARCH_QUERIES
-        assert len(_SEARCH_QUERIES) >= 25
-        assert len(_SEARCH_QUERIES) <= 35  # Don't exceed timeout budget
+        assert len(_SEARCH_QUERIES) >= 20
+        assert len(_SEARCH_QUERIES) <= 30  # Don't exceed timeout budget
