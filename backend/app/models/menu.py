@@ -81,12 +81,18 @@ class PlatformMenuItem(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "platform_menu_items"
     __table_args__ = (
         Index("idx_menu_items_restaurant", "platform_restaurant_id", "is_available"),
+        Index(
+            "idx_platform_menu_items_unmatched",
+            "platform_restaurant_id",
+            "canonical_menu_item_id",
+            postgresql_where="canonical_menu_item_id IS NULL",
+        ),
     )
 
-    canonical_menu_item_id: Mapped[uuid.UUID] = mapped_column(
+    canonical_menu_item_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("canonical_menu_items.id"),
-        nullable=False,
+        nullable=True,
     )
     platform_restaurant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -108,7 +114,7 @@ class PlatformMenuItem(UUIDPrimaryKeyMixin, Base):
     )
 
     # Relationships
-    canonical_menu_item: Mapped["CanonicalMenuItem"] = relationship(
+    canonical_menu_item: Mapped["CanonicalMenuItem | None"] = relationship(
         "CanonicalMenuItem", back_populates="platform_menu_items"
     )
     platform_restaurant: Mapped["PlatformRestaurant"] = relationship(
