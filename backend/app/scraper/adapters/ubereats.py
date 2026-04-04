@@ -1,20 +1,19 @@
 """
-Uber Eats adapter — with parallel search via suggestions (March 2026).
+Uber Eats adapter — sitemap-driven discovery + getStoreV1 menus (April 2026).
 
-Search strategy:
-  POST getSearchSuggestionsV1 with ~25 food terms IN PARALLEL.
-  API returns max 2 store results per query.
-  Uses shared httpx client for all suggestions (single TLS handshake).
-  Single budget/CB check for the whole batch (not per-query).
-  ~25 queries with 10 concurrent ≈ 2-3s total (within 8s timeout).
+Strategy (updated from suggestion-only):
+  - Search: read pre-synced store list from Redis (populated by sync_ubereats_slugs job)
+  - Fallback: parallel getSearchSuggestionsV1 with 25 queries (~43 results)
+  - Menu: POST getStoreV1 → store info + full catalog
+  - Price already in GROSZ — zero conversion
 
-Menu: POST getStoreV1 → store info + full catalog.
-Price already in GROSZ — zero conversion.
+Redis keys consumed:
+    scraper:ubereats:known_stores  →  JSON list of {slug, uuid, locale}
+
+Expected coverage after sitemap sync:
+    ~11,998 unique stores (vs ~43 from suggestions)
 
 IMPORTANT: platform_slug = UUID (not human-readable slug).
-  UberEats API identifies stores by UUID, so all internal references
-  use UUID to ensure get_menu() receives the correct identifier.
-  The human-readable slug is only used for constructing platform_url.
 """
 
 from __future__ import annotations
@@ -58,21 +57,15 @@ _UBEREATS_HEADERS = {
     "x-csrf-token": "x",
 }
 
-# Expanded query pool — verified via diag (March 2026).
-# API returns max 2 stores per query. Only queries yielding >0 results included.
-# 25 queries / 10 concurrent = 3 rounds × ~750ms = ~2.5s with shared client.
+# Fallback query pool (used when Redis empty / first run before sync)
 _SEARCH_QUERIES = [
-    # Food types (high yield — 2 each)
     "pizza", "burger", "sushi", "kebab", "ramen",
     "pierogi", "zapiekanka", "tacos", "pasta", "bowl",
     "vegan", "fit", "poke", "pad thai", "obiad",
-    # Chains (1 each)
     "KFC", "McDonald", "Dominos", "Subway", "Starbucks",
-    # Cuisine + misc (1-2 each)
     "indyjska", "turecka", "naleśniki", "restauracja", "lunch",
 ]
 
-# Max concurrent suggestion requests
 _SUGGESTION_CONCURRENCY = 10
 
 
@@ -98,11 +91,12 @@ class UberEatsAdapter(BaseAdapter):
         *,
         priority: Priority = Priority.NORMAL,
     ) -> list[NormalizedRestaurant]:
-        """Search via parallel getSearchSuggestionsV1 queries.
+        """Search via sitemap-derived store list from Redis.
 
-        Uses batched infrastructure: single CB check + budget acquire
-        for the whole search, then shared httpx client for all suggestions.
-        This avoids per-query overhead (TLS handshake + Redis roundtrips).
+        Primary: read known stores from Redis (populated by sync_ubereats_slugs job).
+        Fallback: parallel getSearchSuggestionsV1 queries (~43 results).
+
+        No HTTP requests in sitemap path — pure Redis read.
         """
         cache_key = f"scraper:ubereats:search:{lat:.3f}:{lng:.3f}"
         cached = await self._redis.get(cache_key)
@@ -113,23 +107,70 @@ class UberEatsAdapter(BaseAdapter):
             except Exception:
                 pass
 
-        # Single infrastructure check for the whole batch
-        await self._cb.check(self.PLATFORM_NAME)
-        await self._budget.acquire(self.PLATFORM_NAME, priority)
+        # PRIMARY: Read sitemap-derived stores from Redis
+        restaurants = await self._search_from_sitemap()
 
-        # Run all suggestions with a shared httpx client
-        discovered = await self._batch_suggestions(priority=priority)
-
-        logger.info("ubereats search: discovered %d unique stores from %d queries",
-                     len(discovered), len(_SEARCH_QUERIES))
-
-        restaurants = [self._normalize_suggestion(s) for s in discovered.values()]
+        # FALLBACK: Suggestion queries if sitemap not yet synced
+        if not restaurants:
+            logger.warning(
+                "ubereats: no sitemap stores in Redis — falling back to suggestions. "
+                "Run sync_ubereats_slugs job to populate."
+            )
+            await self._cb.check(self.PLATFORM_NAME)
+            await self._budget.acquire(self.PLATFORM_NAME, priority)
+            discovered = await self._batch_suggestions(priority=priority)
+            restaurants = [self._normalize_suggestion(s) for s in discovered.values()]
 
         if restaurants:
             data = [r.model_dump(mode="json") for r in restaurants]
             await self._redis.setex(cache_key, 1800, json.dumps(data, default=str))
 
+        logger.info("ubereats search: %d restaurants", len(restaurants))
         return restaurants
+
+    async def _search_from_sitemap(self) -> list[NormalizedRestaurant]:
+        """Build restaurant list from pre-synced sitemap data in Redis.
+
+        Zero HTTP requests — pure Redis read + NormalizedRestaurant construction.
+        """
+        raw = await self._redis.get("scraper:ubereats:known_stores")
+        if not raw:
+            return []
+
+        try:
+            stores: list[dict] = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            logger.error("ubereats: invalid JSON in scraper:ubereats:known_stores")
+            return []
+
+        restaurants: list[NormalizedRestaurant] = []
+        for s in stores:
+            uuid = s.get("uuid", "")
+            slug = s.get("slug", "")
+            locale = s.get("locale", "pl-en")
+            if not uuid:
+                continue
+
+            restaurants.append(NormalizedRestaurant(
+                platform="ubereats",
+                platform_restaurant_id=uuid,
+                platform_name=self._slug_to_name(slug),
+                # CRITICAL: platform_slug = UUID for UberEats API
+                platform_slug=uuid,
+                platform_url=f"https://www.ubereats.com/{locale}/store/{slug}/{uuid}",
+                name=self._slug_to_name(slug),
+                latitude=0.0,
+                longitude=0.0,
+                is_online=True,  # Assume available — getStoreV1 will confirm
+            ))
+
+        logger.info("ubereats sitemap: %d restaurants from Redis", len(restaurants))
+        return restaurants
+
+    @staticmethod
+    def _slug_to_name(slug: str) -> str:
+        """Convert URL slug to display name: 'pizza-hut-mokotow' → 'Pizza Hut Mokotow'."""
+        return slug.replace("-", " ").replace("&", "&").strip().title()
 
     async def get_menu(
         self,
@@ -165,18 +206,14 @@ class UberEatsAdapter(BaseAdapter):
     async def get_promotions(self, store_uuid: str, **kw) -> list[NormalizedPromotion]:
         return []
 
-    # ── Batch suggestions (shared client, minimal overhead) ─
+    # ── Batch suggestions (fallback) ────────────────────────
 
     async def _batch_suggestions(
         self,
         *,
         priority: Priority = Priority.NORMAL,
     ) -> dict[str, UberEatsSuggestionStore]:
-        """Run all suggestion queries with a SHARED httpx client.
-
-        Single TLS handshake + connection reuse → ~3x faster than per-query clients.
-        Budget/CB already checked by caller.
-        """
+        """FALLBACK: Run suggestion queries with a shared httpx client."""
         discovered: dict[str, UberEatsSuggestionStore] = {}
         semaphore = asyncio.Semaphore(_SUGGESTION_CONCURRENCY)
         url = f"{_UBEREATS_BASE}/_p/api/getSearchSuggestionsV1?localeCode=pl-en"
@@ -230,7 +267,6 @@ class UberEatsAdapter(BaseAdapter):
         *,
         priority: Priority = Priority.NORMAL,
     ) -> list[UberEatsSuggestionStore]:
-        """POST getSearchSuggestionsV1 — single query via base _post."""
         resp = await self._post(
             f"{_UBEREATS_BASE}/_p/api/getSearchSuggestionsV1?localeCode=pl-en",
             json_body={"userQuery": query, "date": "", "startTime": 0, "endTime": 0},
@@ -288,9 +324,6 @@ class UberEatsAdapter(BaseAdapter):
             platform="ubereats",
             platform_restaurant_id=store.uuid,
             platform_name=store.title,
-            # CRITICAL: platform_slug = UUID, not human slug.
-            # Orchestrator passes platform_slug to get_menu(),
-            # and UberEats API requires UUID, not slug.
             platform_slug=store.uuid,
             platform_url=f"https://www.ubereats.com/pl-en/store/{store.slug}/{store.uuid}",
             name=store.title,
@@ -306,7 +339,7 @@ class UberEatsAdapter(BaseAdapter):
             platform="ubereats",
             platform_restaurant_id=store.uuid,
             platform_name=store.title,
-            platform_slug=store.uuid,  # UUID — consistent with _normalize_suggestion
+            platform_slug=store.uuid,
             platform_url=f"https://www.ubereats.com/pl-en/store/{store.slug}/{store.uuid}",
             name=store.title,
             address_street=store.location.streetAddress,
