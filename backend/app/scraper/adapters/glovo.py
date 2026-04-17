@@ -176,7 +176,7 @@ class GlovoAdapter(BaseAdapter):
         """Build restaurant list from pre-synced sitemap slugs in Redis.
 
         Zero HTTP requests — pure Redis read + NormalizedRestaurant construction.
-        Menu details (name, price, etc.) will be filled on-demand by get_menu().
+        Filters out slugs previously marked as invalid (RSC parse failures).
         """
         redis_key = f"scraper:glovo:known_slugs:{self._city_slug}"
         raw = await self._redis.get(redis_key)
@@ -189,11 +189,16 @@ class GlovoAdapter(BaseAdapter):
             logger.error("glovo: invalid JSON in %s", redis_key)
             return []
 
+        # Load invalid slugs set (cached failures)
+        invalid_slugs = await self._get_invalid_slugs()
+
         restaurants: list[NormalizedRestaurant] = []
+        skipped_invalid = 0
         for slug in slugs:
-            # Double-check non-food filter (sync job should have filtered already,
-            # but belt-and-suspenders)
             if self._is_non_food_slug(slug):
+                continue
+            if slug in invalid_slugs:
+                skipped_invalid += 1
                 continue
 
             restaurants.append(NormalizedRestaurant(
@@ -205,8 +210,12 @@ class GlovoAdapter(BaseAdapter):
                 name=self._slug_to_name(slug),
                 latitude=0.0,
                 longitude=0.0,
-                is_online=True,  # Assume available — menu fetch will confirm
+                is_online=True,
             ))
+
+        if skipped_invalid:
+            logger.info("glovo sitemap: skipped %d invalid slugs for %s",
+                        skipped_invalid, self._city_slug)
 
         logger.info(
             "glovo sitemap: %d restaurants from Redis for %s",
@@ -220,15 +229,21 @@ class GlovoAdapter(BaseAdapter):
         *,
         priority: Priority = Priority.NORMAL,
     ) -> list[NormalizedMenuItem]:
-        """Fetch store page HTML → parse RSC → store + menu."""
+        """Fetch store page HTML → parse RSC → store + menu.
+
+        If RSC parsing fails, marks slug as invalid to skip in future searches.
+        """
         store_data, menu_data = await self._fetch_store_page(slug, priority=priority)
 
         if menu_data is None:
+            # Mark slug as invalid so search skips it next time
+            await self._mark_slug_invalid(slug)
             raise GlovoParseError(f"Menu not found in RSC for {slug}")
 
         try:
             menu = GlovoMenuResponse.model_validate(menu_data)
         except Exception as exc:
+            await self._mark_slug_invalid(slug)
             raise GlovoParseError(f"Menu parse failed for {slug}: {exc}") from exc
 
         products = menu.all_products()
@@ -270,6 +285,27 @@ class GlovoAdapter(BaseAdapter):
 
     async def get_promotions(self, slug: str, **kw) -> list[NormalizedPromotion]:
         return []
+
+    # ── Invalid slug tracking ──────────────────────────────
+
+    async def _mark_slug_invalid(self, slug: str) -> None:
+        """Cache a slug as invalid (RSC parse failure). TTL 24h — retries daily."""
+        redis_key = f"scraper:glovo:invalid_slugs:{self._city_slug}"
+        try:
+            await self._redis.sadd(redis_key, slug)
+            await self._redis.expire(redis_key, 86400)  # 24h TTL
+            logger.info("glovo: marked slug as invalid: %s (city: %s)", slug, self._city_slug)
+        except Exception:
+            pass  # Non-critical — worst case we retry a bad slug
+
+    async def _get_invalid_slugs(self) -> set[str]:
+        """Get set of known-invalid slugs for current city."""
+        redis_key = f"scraper:glovo:invalid_slugs:{self._city_slug}"
+        try:
+            members = await self._redis.smembers(redis_key)
+            return set(members) if members else set()
+        except Exception:
+            return set()
 
     # ── HTML scraping fallback: category page → restaurant list ──
 
@@ -403,6 +439,7 @@ class GlovoAdapter(BaseAdapter):
             )
         except Exception as exc:
             logger.warning("glovo store page fetch failed for %s: %s", slug, exc)
+            await self._mark_slug_invalid(slug)
             return None, None
 
         html = resp.text

@@ -1,68 +1,46 @@
-# Epic 3 Hotfix v4 — UberEats Sitemap Sync
+# Hotfix 2 — UberEats UUID Decode Fix
 
-## Co jest w paczce
+## Odkrycie
 
+Sitemap UberEats zawiera UUID-y w formacie **base64url** (22 znaki):
 ```
-patch-v4/
-├── app/
-│   ├── jobs/
-│   │   └── sync_ubereats_slugs.py     # NOWY: UberEats sitemap sync job
-│   └── scraper/
-│       └── adapters/
-│           └── ubereats.py             # ZMODYFIKOWANY: sitemap-based search
-└── tests/
-    └── test_ubereats_sitemap.py        # Testy sync joba + adaptera
+skuqnuRLTnWC8PipFYCYfg
 ```
 
-**UWAGA**: Ten patch nie zawiera plików Glovo — te zostały dostarczone w v3.
+API `getStoreV1` oczekuje **hex UUID** (36 znaków):
+```
+b24baa9e-e44b-4e75-82f0-f8a91580987e
+```
 
-## Deployment
+Konwersja: `base64.urlsafe_b64decode(b64url + padding)` → `uuid.UUID(bytes=...)` → hex string.
 
-```powershell
-cd C:\Projects\TaniejJedz\backend
-# Rozpakuj — nadpisze ubereats.py!
+**Wynik testu P0**: 10/10 UUID-ów z sitemapy zwraca sukces po decode — koordynaty + menu (60-211 items).
+
+## Pliki
+
+```
+app/scraper/adapters/ubereats.py     # ZMODYFIKOWANY — decode_ubereats_uuid() + _ensure_hex_uuid()
+app/jobs/enrich_ubereats.py          # NOWY — batch enrichment (koordynaty + menu validation)
+diag/diag_uuid_decode.py             # Skrypt diagnostyczny P0
+tests/test_ubereats_uuid_decode.py   # Testy decode
 ```
 
 ## Testowanie
 
 ```powershell
-# 1. Testy jednostkowe (bez Redis/sieci)
-pytest tests/test_ubereats_sitemap.py -v
+# 1. Testy jednostkowe
+pytest tests/test_ubereats_uuid_decode.py -v
 
-# 2. UberEats sitemap sync (wymaga Redis + sieć, ~2-3 min)
-python -m app.jobs.sync_ubereats_slugs
+# 2. Enrichment Warszawa (~787 stores, ~13 min at 1 req/s)
+python -m app.jobs.enrich_ubereats
 
-# 3. Weryfikacja Redis
-redis-cli -a localdevpassword
-> GET scraper:ubereats:sitemap_meta
-> STRLEN scraper:ubereats:known_stores
+# 3. Enrichment innego miasta
+$env:ENRICH_CITY="krakow"
+python -m app.jobs.enrich_ubereats
 ```
 
-## Oczekiwany output sync
+## Zmiany w adapterze
 
-```
-============================================================
-  UBEREATS SITEMAP SYNC — standalone runner
-============================================================
-  Connecting to: redis://:*****@localhost:6379/0
-  ✓ Connected to Redis
+Jedyna zmiana behawioralna: `_search_from_sitemap()` teraz dekoduje base64url→hex UUID przed zapisaniem do `platform_slug`. Reszta kodu (suggestions, normalizacja, schemas) bez zmian.
 
-  ...scanning 114 sitemaps...
-
-============================================================
-  SYNC COMPLETE
-============================================================
-  Total unique stores: ~11,998
-  Duration: ~150s
-  Sitemaps scanned: 114
-```
-
-## Podsumowanie coverage po obu syncach
-
-| Platforma | Przed | Po | Mnożnik |
-|-----------|------:|---:|--------:|
-| Glovo     |    50 | 13,867 | 277× |
-| UberEats  |    43 | 11,998 | 279× |
-| Wolt      |   630 | 630    | (bez zmian) |
-| Pyszne    |   556 | 556    | (bez zmian) |
-| **TOTAL** | 1,279 | **27,051** | **21×** |
+`_ensure_hex_uuid()` w `get_menu()`, `get_store_info()`, `get_delivery_fee()` automatycznie dekoduje jeśli dostanie base64url — safety net.
